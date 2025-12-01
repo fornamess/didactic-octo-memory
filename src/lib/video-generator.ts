@@ -81,12 +81,13 @@ export async function createVideoTask(
         Authorization: `Bearer ${YES_AI_TOKEN}`,
       },
       body: JSON.stringify({
-        version: '2',
+        sora_version: 2,
         prompt: prompt,
         customer_id: customerId,
-        resolution: 720,
-        dimensions: '16:9',
-        duration: 20, // Максимум 20 секунд чтобы Дед Мороз успел всё сказать
+        sora_resolution: 720,
+        sora_dimensions: '16:9',
+        sora_duration: 15, // Максимально доступное значение (10 или 15 секунд)
+        sora_effect_id: 0,
       }),
     });
 
