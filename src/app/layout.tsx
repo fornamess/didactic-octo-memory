@@ -1,20 +1,21 @@
 import type { Metadata } from 'next';
-import { Nunito, Marck_Script } from 'next/font/google';
+// import { Nunito, Marck_Script } from 'next/font/google';
 import './globals.css';
 
-const nunito = Nunito({
-  subsets: ['latin', 'cyrillic'],
-  weight: ['400', '600', '700', '800'],
-  variable: '--font-nunito',
-  display: 'swap',
-});
+// Временно отключены Google Fonts для сборки в Docker
+// const nunito = Nunito({
+//   subsets: ['latin', 'cyrillic'],
+//   weight: ['400', '600', '700', '800'],
+//   variable: '--font-nunito',
+//   display: 'swap',
+// });
 
-const marckScript = Marck_Script({
-  subsets: ['latin', 'cyrillic'],
-  weight: ['400'],
-  variable: '--font-marck-script',
-  display: 'swap',
-});
+// const marckScript = Marck_Script({
+//   subsets: ['latin', 'cyrillic'],
+//   weight: ['400'],
+//   variable: '--font-marck-script',
+//   display: 'swap',
+// });
 
 export const metadata: Metadata = {
   title: '🎅 Видео-поздравление от Деда Мороза | AI Генератор',
@@ -30,9 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body className={`${nunito.variable} ${marckScript.variable} antialiased`}>
-        {children}
-      </body>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }
