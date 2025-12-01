@@ -1,11 +1,46 @@
 import fs from 'fs';
 import path from 'path';
-import { FFMPEG_PATH, VIDEO_PROMPTS, YES_AI_API_BASE, YES_AI_TOKEN } from './config';
+import {
+  FFMPEG_PATH,
+  VIDEO_PROMPTS,
+  VIDEO_PUBLIC_PATH,
+  VIDEO_STORAGE_PATH,
+  YES_AI_API_BASE,
+  YES_AI_TOKEN,
+} from './config';
 
-// Пути к универсальным видео
-const VIDEOS_DIR = path.join(process.cwd(), 'public', 'videos');
-const INTRO_PATH = path.join(VIDEOS_DIR, 'intro.mp4');
-const OUTRO_PATH = path.join(VIDEOS_DIR, 'outro.mp4');
+// Инициализация хранилища видео (создание директорий)
+// Симлинк создаётся в entrypoint.sh при старте контейнера
+function ensureVideoStorage() {
+  // Создаём директории в персистентном хранилище
+  const storageDirs = [
+    VIDEO_STORAGE_PATH,
+    path.join(VIDEO_STORAGE_PATH, 'intro'),
+    path.join(VIDEO_STORAGE_PATH, 'outro'),
+    path.join(VIDEO_STORAGE_PATH, 'personal'),
+    path.join(VIDEO_STORAGE_PATH, 'final'),
+  ];
+
+  for (const dir of storageDirs) {
+    if (!fs.existsSync(dir)) {
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch (error) {
+        console.warn(`Could not create directory ${dir}:`, error);
+      }
+    }
+  }
+}
+
+// Инициализируем при первом импорте
+ensureVideoStorage();
+
+// Пути к универсальным видео (используем storage path для записи)
+const INTRO_PATH = path.join(VIDEO_STORAGE_PATH, 'intro.mp4');
+const OUTRO_PATH = path.join(VIDEO_STORAGE_PATH, 'outro.mp4');
+
+// Путь для Next.js статики (для чтения)
+const VIDEOS_DIR = VIDEO_PUBLIC_PATH;
 
 interface GenerationResult {
   success: boolean;
@@ -178,12 +213,19 @@ export async function saveOutroVideo(videoUrl: string): Promise<boolean> {
 }
 
 // Получение путей к универсальным видео
+// Возвращаем пути для Next.js статики (через public/videos)
+// Фактическое хранение в VIDEO_STORAGE_PATH, но доступ через public/videos
 export function getUniversalVideoPaths() {
+  // Пути для Next.js статики (относительно public/)
+  const publicIntroPath = path.join(VIDEOS_DIR, 'intro.mp4');
+  const publicOutroPath = path.join(VIDEOS_DIR, 'outro.mp4');
+
+  // Проверяем существование в storage (откуда реально читаем)
   return {
-    intro: INTRO_PATH,
-    outro: OUTRO_PATH,
-    introExists: fs.existsSync(INTRO_PATH),
-    outroExists: fs.existsSync(OUTRO_PATH),
+    intro: publicIntroPath, // Путь для Next.js
+    outro: publicOutroPath, // Путь для Next.js
+    introExists: fs.existsSync(INTRO_PATH), // Проверка в storage
+    outroExists: fs.existsSync(OUTRO_PATH), // Проверка в storage
   };
 }
 
@@ -244,18 +286,18 @@ file '${outroPath.replace(/\\/g, '/')}'`;
   });
 }
 
-// Путь к папке с персональными видео
+// Путь к папке с персональными видео (используем storage для записи)
 export function getPersonalVideoPath(orderId: number): string {
-  const personalDir = path.join(VIDEOS_DIR, 'personal');
+  const personalDir = path.join(VIDEO_STORAGE_PATH, 'personal');
   if (!fs.existsSync(personalDir)) {
     fs.mkdirSync(personalDir, { recursive: true });
   }
   return path.join(personalDir, `personal_${orderId}.mp4`);
 }
 
-// Путь к финальному склеенному видео
+// Путь к финальному склеенному видео (используем storage для записи)
 export function getFinalVideoPath(orderId: number): string {
-  const finalDir = path.join(VIDEOS_DIR, 'final');
+  const finalDir = path.join(VIDEO_STORAGE_PATH, 'final');
   if (!fs.existsSync(finalDir)) {
     fs.mkdirSync(finalDir, { recursive: true });
   }

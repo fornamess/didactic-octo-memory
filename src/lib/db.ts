@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import sqlite3 from 'sqlite3';
 import { DATABASE_PATH, VIDEO_EXPIRY_DAYS } from './config';
@@ -5,6 +6,16 @@ import { DATABASE_PATH, VIDEO_EXPIRY_DAYS } from './config';
 const DB_PATH = DATABASE_PATH.startsWith('./')
   ? path.join(process.cwd(), DATABASE_PATH.slice(2))
   : DATABASE_PATH;
+
+// Создаём директорию для БД если её нет
+const dbDir = path.dirname(DB_PATH);
+if (dbDir !== '.' && !fs.existsSync(dbDir)) {
+  try {
+    fs.mkdirSync(dbDir, { recursive: true });
+  } catch (error) {
+    console.warn(`Could not create database directory ${dbDir}:`, error);
+  }
+}
 
 // === Базовые функции работы с БД ===
 

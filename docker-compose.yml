@@ -30,11 +30,15 @@ services:
       - SERVICE_COST=${SERVICE_COST:-0}
       - VIDEO_EXPIRY_DAYS=${VIDEO_EXPIRY_DAYS:-7}
       - GENERATION_TIMEOUT_MINUTES=${GENERATION_TIMEOUT_MINUTES:-15}
+      # База данных и хранилище
+      - DATABASE_PATH=${DATABASE_PATH:-/data/app.db}
+      - VIDEO_STORAGE_PATH=${VIDEO_STORAGE_PATH:-/data/videos}
     volumes:
-      # Персистентное хранилище для БД
-      - dedmoroz-db:/app
-      # Персистентное хранилище для видео
-      - dedmoroz-videos:/app/public/videos
+      # Персистентное хранилище для БД и видео (для Amvera используйте /data)
+      # Для локальной разработки можно использовать named volumes:
+      - dedmoroz-data:/data
+      # Или bind mount для локальной разработки:
+      # - ./data:/data
     restart: unless-stopped
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000']
@@ -44,7 +48,6 @@ services:
       start_period: 40s
 
 volumes:
-  dedmoroz-db:
-    driver: local
-  dedmoroz-videos:
+  # Единый volume для всех данных (БД и видео)
+  dedmoroz-data:
     driver: local

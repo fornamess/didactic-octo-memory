@@ -3,9 +3,12 @@
  * Все настройки берутся из переменных окружения
  */
 
+import path from 'path';
+
 // === Безопасность ===
 // Используем fallback только если переменная не установлена или пустая
-export const JWT_SECRET = process.env.JWT_SECRET?.trim() || 'your-super-secret-jwt-key-change-in-production-2024';
+export const JWT_SECRET =
+  process.env.JWT_SECRET?.trim() || 'your-super-secret-jwt-key-change-in-production-2024';
 
 // === API Yes AI (генерация видео) ===
 export const YES_AI_API_BASE = process.env.YES_AI_API_BASE || 'https://api.yesai.su/v2';
@@ -37,7 +40,15 @@ export const VIDEO_EXPIRY_DAYS = Number(process.env.VIDEO_EXPIRY_DAYS) || 7;
 export const GENERATION_TIMEOUT_MINUTES = Number(process.env.GENERATION_TIMEOUT_MINUTES) || 15;
 
 // === База данных ===
-export const DATABASE_PATH = process.env.DATABASE_PATH || './database.db';
+// Для Amvera используем /data/app.db (персистентное хранилище)
+export const DATABASE_PATH = process.env.DATABASE_PATH || '/data/app.db';
+
+// === Хранилище видео ===
+// Для Amvera используем /data/videos (персистентное хранилище)
+// Next.js будет раздавать из public/videos через симлинк
+export const VIDEO_STORAGE_PATH = process.env.VIDEO_STORAGE_PATH || '/data/videos';
+export const VIDEO_PUBLIC_PATH =
+  process.env.VIDEO_PUBLIC_PATH || path.join(process.cwd(), 'public', 'videos');
 
 // === Промпты для генерации видео ===
 export const VIDEO_PROMPTS = {

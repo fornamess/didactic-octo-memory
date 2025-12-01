@@ -40,8 +40,12 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Создаем директории для БД и видео
-RUN mkdir -p /app/public/videos/intro /app/public/videos/outro /app/public/videos/personal /app/public/videos/final
+# Копируем entrypoint скрипт
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Создаем директории для БД и видео (будут пересозданы через симлинк)
+RUN mkdir -p /app/public
 RUN chown -R nextjs:nodejs /app
 
 USER nextjs
@@ -58,4 +62,5 @@ ENV FFMPEG_PATH=/usr/bin/ffmpeg
 # при запуске контейнера через docker-compose или настройки хостинга (Amvera)
 # Не устанавливаем их здесь, чтобы избежать конфликтов с реальными значениями
 
-CMD ["node", "server.js"]
+# Используем entrypoint скрипт для инициализации хранилища
+ENTRYPOINT ["/app/entrypoint.sh"]
