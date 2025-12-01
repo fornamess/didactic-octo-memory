@@ -4,7 +4,8 @@
  */
 
 // === Безопасность ===
-export const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production-2024';
+// Используем fallback только если переменная не установлена или пустая
+export const JWT_SECRET = process.env.JWT_SECRET?.trim() || 'your-super-secret-jwt-key-change-in-production-2024';
 
 // === API Yes AI (генерация видео) ===
 export const YES_AI_API_BASE = process.env.YES_AI_API_BASE || 'https://api.yesai.su/v2';
