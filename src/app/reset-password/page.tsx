@@ -4,9 +4,9 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Eye, EyeOff, Lock, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
@@ -125,7 +125,9 @@ export default function ResetPasswordPage() {
                 <Lock className="w-8 h-8 text-red-400" />
               </div>
               <h1 className="text-2xl font-bold text-white mb-4">Токен недействителен</h1>
-              <p className="text-[#a8d8ea] mb-6">{error || 'Ссылка для сброса пароля недействительна или истёкла'}</p>
+              <p className="text-[#a8d8ea] mb-6">
+                {error || 'Ссылка для сброса пароля недействительна или истёкла'}
+              </p>
               <Link
                 href="/forgot-password"
                 className="btn-magic px-6 py-3 rounded-xl text-white inline-flex items-center gap-2"
@@ -179,9 +181,7 @@ export default function ResetPasswordPage() {
               >
                 <span className="text-6xl">🔑</span>
               </motion.div>
-              <h1 className="text-3xl font-bold text-gradient font-display mb-2">
-                Новый пароль
-              </h1>
+              <h1 className="text-3xl font-bold text-gradient font-display mb-2">Новый пароль</h1>
               <p className="text-[#a8d8ea]/80">Введите новый пароль для вашего аккаунта</p>
             </div>
 
@@ -282,5 +282,22 @@ export default function ResetPasswordPage() {
         </motion.div>
       </div>
     </main>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0c1929] via-[#1a3a5c] to-[#0d2840]">
+          <div className="text-center">
+            <Sparkles className="w-12 h-12 text-[#ffd700] animate-spin mx-auto mb-4" />
+            <p className="text-[#a8d8ea]">Загрузка...</p>
+          </div>
+        </main>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
