@@ -1,26 +1,258 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0c1929;
+  --foreground: #e8f4fc;
+  --primary: #c41e3a;
+  --primary-light: #e74c3c;
+  --secondary: #1a5f7a;
+  --gold: #ffd700;
+  --snow: #f0f8ff;
+  --ice: #a8d8ea;
+  --forest: #0d4f2b;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(180deg, #0c1929 0%, #1a3a5c 50%, #0d2840 100%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-nunito), sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Снежинки */
+@keyframes snowfall {
+  0% {
+    transform: translateY(-10vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(360deg);
+    opacity: 0.3;
+  }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4),
+                0 0 40px rgba(255, 215, 0, 0.2),
+                0 0 60px rgba(255, 215, 0, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.6),
+                0 0 60px rgba(255, 215, 0, 0.4),
+                0 0 90px rgba(255, 215, 0, 0.2);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.snowflake {
+  position: fixed;
+  top: -10vh;
+  color: white;
+  font-size: 1rem;
+  pointer-events: none;
+  animation: snowfall linear infinite;
+  z-index: 1;
+  text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+}
+
+.star {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: white;
+  border-radius: 50%;
+  animation: twinkle ease-in-out infinite;
+}
+
+/* Градиентный текст */
+.text-gradient {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4a 50%, #ffd700 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Стеклянный эффект */
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.glass-dark {
+  background: rgba(12, 25, 41, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Кнопка */
+.btn-magic {
+  background: linear-gradient(135deg, #c41e3a 0%, #e74c3c 50%, #c41e3a 100%);
+  background-size: 200% 200%;
+  border: 2px solid rgba(255, 215, 0, 0.5);
+  transition: all 0.4s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-magic::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn-magic:hover::before {
+  left: 100%;
+}
+
+.btn-magic:hover {
+  background-position: right center;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 40px rgba(196, 30, 58, 0.5),
+              0 0 20px rgba(255, 215, 0, 0.3);
+  border-color: rgba(255, 215, 0, 0.8);
+}
+
+.btn-magic:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Инпут */
+.input-magic {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(168, 216, 234, 0.3);
+  transition: all 0.3s ease;
+}
+
+.input-magic:focus {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 215, 0, 0.6);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.2),
+              inset 0 0 20px rgba(255, 215, 0, 0.05);
+  outline: none;
+}
+
+.input-magic::placeholder {
+  color: rgba(232, 244, 252, 0.5);
+}
+
+/* Стили для select и option */
+.input-magic option {
+  background: #0c1929;
+  color: #f0f8ff;
+  padding: 10px;
+}
+
+.input-magic option:hover,
+.input-magic option:checked,
+.input-magic option:focus {
+  background: rgba(196, 30, 58, 0.3);
+  color: #ffd700;
+}
+
+select.input-magic {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffd700' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 3rem;
+}
+
+/* Карточка */
+.card-festive {
+  background: linear-gradient(145deg, rgba(26, 58, 92, 0.6) 0%, rgba(12, 25, 41, 0.8) 100%);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.card-festive::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #ffd700, transparent);
+}
+
+/* Анимация загрузки */
+.loading-magic {
+  position: relative;
+}
+
+.loading-magic::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent, #ffd700, #c41e3a, transparent);
+  animation: spin 2s linear infinite;
+  z-index: -1;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+
+/* Скроллбар */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(12, 25, 41, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #c41e3a, #1a5f7a);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #e74c3c, #2980b9);
+}
+
+/* Декоративные элементы */
+.ornament {
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+}
+
+.tree-glow {
+  filter: drop-shadow(0 0 20px rgba(13, 79, 43, 0.8));
 }

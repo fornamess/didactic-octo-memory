@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database
+database.db
+database.db-journal
+
+# generated videos
+public/videos/
+*.mp4
