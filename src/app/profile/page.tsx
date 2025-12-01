@@ -25,6 +25,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
+interface SupportContacts {
+  telegram: string;
+  email: string;
+}
+
 interface Order {
   id: number;
   orderNumber: string;
@@ -67,6 +72,22 @@ export default function ProfilePage() {
   const [topupAmount, setTopupAmount] = useState(10);
   const [topupLoading, setTopupLoading] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [supportContacts, setSupportContacts] = useState<SupportContacts>({
+    telegram: '@support',
+    email: 'support@example.com',
+  });
+
+  // Загрузка контактов поддержки
+  useEffect(() => {
+    fetch('/api/settings/support')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.telegram && data.email) {
+          setSupportContacts(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Проверка статуса генерации для pending заказов
   const checkPendingOrders = useCallback(async () => {
@@ -631,7 +652,7 @@ export default function ProfilePage() {
 
               <div className="grid md:grid-cols-2 gap-6">
                 <a
-                  href="https://t.me/support"
+                  href={`https://t.me/${supportContacts.telegram.replace('@', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="glass-dark p-6 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-4"
@@ -641,12 +662,12 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <h3 className="text-white font-semibold mb-1">Telegram</h3>
-                    <p className="text-[#a8d8ea]/60">@support</p>
+                    <p className="text-[#a8d8ea]/60">{supportContacts.telegram}</p>
                   </div>
                 </a>
 
                 <a
-                  href="mailto:support@example.com"
+                  href={`mailto:${supportContacts.email}`}
                   className="glass-dark p-6 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-4"
                 >
                   <div className="w-14 h-14 rounded-full bg-[#c41e3a] flex items-center justify-center">
@@ -654,7 +675,7 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <h3 className="text-white font-semibold mb-1">Email</h3>
-                    <p className="text-[#a8d8ea]/60">support@example.com</p>
+                    <p className="text-[#a8d8ea]/60">{supportContacts.email}</p>
                   </div>
                 </a>
               </div>

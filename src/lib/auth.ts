@@ -1,7 +1,6 @@
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from './config';
 
 export interface UserPayload {
   id: number;

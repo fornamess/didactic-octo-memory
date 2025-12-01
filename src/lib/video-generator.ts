@@ -1,18 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-
-const YES_AI_API_BASE = 'https://api.yesai.su/v2';
-const YES_AI_TOKEN = 'yes-a33661358cdd84069ef3fcbb6e65b43c380d70104b34519ba37d268d785d';
+import { FFMPEG_PATH, VIDEO_PROMPTS, YES_AI_API_BASE, YES_AI_TOKEN } from './config';
 
 // Пути к универсальным видео
 const VIDEOS_DIR = path.join(process.cwd(), 'public', 'videos');
 const INTRO_PATH = path.join(VIDEOS_DIR, 'intro.mp4');
 const OUTRO_PATH = path.join(VIDEOS_DIR, 'outro.mp4');
-
-// Промпты для универсальных частей
-const INTRO_PROMPT = `Дед Мороз в традиционной русской красной шубе с белым мехом сидит у стола в уютной комнате. На фоне большая украшенная новогодняя ёлка с гирляндами и игрушками, горит камин, за окном падает снег. Тёплое освещение создаёт волшебную атмосферу. Дед Мороз добро улыбается, открывает волшебную книгу и начинает говорить в камеру. Он машет рукой в приветствии. Атмосфера сказочная, праздничная, уютная. Качество видео высокое, кинематографичное.`;
-
-const OUTRO_PROMPT = `Дед Мороз в традиционной русской красной шубе стоит у украшенной новогодней ёлки с подарками. Вокруг летают снежинки и волшебные искры. Он поднимает руку в прощальном жесте, посох светится магическим светом. Камера плавно отъезжает, показывая всю красоту зимней сказки. В кадре появляются золотые надписи "С Новым 2026 Годом!". Атмосфера торжественная и волшебная.`;
 
 interface GenerationResult {
   success: boolean;
@@ -41,6 +34,11 @@ export async function createVideoTask(
   customerId: string
 ): Promise<GenerationResult> {
   try {
+    if (!YES_AI_TOKEN) {
+      console.error('YES_AI_TOKEN not configured');
+      return { success: false, error: 'API токен не настроен' };
+    }
+
     const response = await fetch(`${YES_AI_API_BASE}/yesvideo/aniimage/sora`, {
       method: 'POST',
       headers: {
@@ -88,6 +86,10 @@ export async function createVideoTask(
 // Проверка статуса задания
 export async function checkTaskStatus(taskId: number): Promise<StatusResult> {
   try {
+    if (!YES_AI_TOKEN) {
+      return { success: false, status: 'error', error: 'API токен не настроен' };
+    }
+
     const response = await fetch(`${YES_AI_API_BASE}/yesvideo/animations/${taskId}`, {
       method: 'GET',
       headers: {
@@ -154,13 +156,13 @@ export function generatePersonalPrompt(
 // Генерация универсального интро (вызывается если файла нет)
 export async function generateIntroVideo(customerId: string): Promise<GenerationResult> {
   console.log('Generating intro video...');
-  return createVideoTask(INTRO_PROMPT, customerId);
+  return createVideoTask(VIDEO_PROMPTS.intro, customerId);
 }
 
 // Генерация универсального финала (вызывается если файла нет)
 export async function generateOutroVideo(customerId: string): Promise<GenerationResult> {
   console.log('Generating outro video...');
-  return createVideoTask(OUTRO_PROMPT, customerId);
+  return createVideoTask(VIDEO_PROMPTS.outro, customerId);
 }
 
 // Сохранение интро видео
@@ -200,8 +202,7 @@ export async function concatenateVideos(
           const ffmpeg = ffmpegModule.default;
 
           // Устанавливаем путь к ffmpeg
-          const ffmpegPath = process.env.FFMPEG_PATH || 'C:\\ffmpeg\\ffmpeg\\bin\\ffmpeg.exe';
-          ffmpeg.setFfmpegPath(ffmpegPath);
+          ffmpeg.setFfmpegPath(FFMPEG_PATH);
 
           // Создаём временный файл со списком видео для конкатенации
           const listPath = path.join(path.dirname(outputPath), 'concat_list.txt');

@@ -1,49 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
-import { initDb } from '@/lib/db';
-import sqlite3 from 'sqlite3';
-import path from 'path';
+import { isAdmin } from '@/lib/config';
+import { ensureDbInitialized, getDb, get, run } from '@/lib/db';
 import fs from 'fs';
-
-const DB_PATH = path.join(process.cwd(), 'database.db');
-
-function getDb(): Promise<sqlite3.Database> {
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, (err) => {
-      if (err) reject(err);
-      else resolve(db);
-    });
-  });
-}
-
-function run(db: sqlite3.Database, sql: string, params: any[] = []): Promise<sqlite3.RunResult> {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  });
-}
-
-function get(db: sqlite3.Database, sql: string, params: any[] = []): Promise<any> {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
-}
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
+import path from 'path';
+import { NextRequest, NextResponse } from 'next/server';
 
 // POST /api/admin/reset-universal - сбросить универсальное видео
 export async function POST(request: NextRequest) {
@@ -53,6 +13,10 @@ export async function POST(request: NextRequest) {
     const user = getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+    }
+
+    if (!isAdmin(user.email)) {
+      return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 
     const { videoType } = await request.json();
@@ -94,6 +58,10 @@ export async function GET(request: NextRequest) {
     const user = getUserFromRequest(request);
     if (!user) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+    }
+
+    if (!isAdmin(user.email)) {
+      return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 
     const db = await getDb();

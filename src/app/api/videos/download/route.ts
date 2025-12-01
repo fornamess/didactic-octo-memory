@@ -1,17 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
-import { getOrderByTaskId, initDb } from '@/lib/db';
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
+import { ensureDbInitialized, getOrderByTaskId } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -57,12 +46,12 @@ export async function GET(request: NextRequest) {
       const safeFileName = order.child_name
         .replace(/[^a-zA-Z0-9а-яА-ЯёЁ\s-]/g, '')
         .replace(/\s+/g, '-')
-        .substring(0, 50); // Ограничиваем длину
+        .substring(0, 50);
 
       // Используем RFC 5987 для правильной кодировки кириллицы
       const encodedFileName = encodeURIComponent(`pozdravlenie-${safeFileName}.mp4`);
       const rfc5987FileName = `filename*=UTF-8''${encodedFileName}`;
-      const asciiFileName = `pozdravlenie-${safeFileName}.mp4`.replace(/[^\x00-\x7F]/g, ''); // Fallback ASCII имя
+      const asciiFileName = `pozdravlenie-${safeFileName}.mp4`.replace(/[^\x00-\x7F]/g, '');
 
       return new NextResponse(videoBuffer, {
         headers: {
@@ -82,9 +71,6 @@ export async function GET(request: NextRequest) {
     }
   } catch (error) {
     console.error('Download route error:', error);
-    return NextResponse.json(
-      { error: 'Ошибка при скачивании видео' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Ошибка при скачивании видео' }, { status: 500 });
   }
 }

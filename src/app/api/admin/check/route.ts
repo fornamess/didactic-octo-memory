@@ -1,20 +1,7 @@
 import { getUserFromRequest } from '@/lib/auth';
-import { initDb } from '@/lib/db';
+import { isAdmin } from '@/lib/config';
+import { ensureDbInitialized } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-
-// Список email администраторов (можно вынести в БД или env)
-const ADMIN_EMAILS = ['system@gmail.com'];
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,11 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    // Проверяем, является ли пользователь админом
-    // Для простоты проверяем email, в продакшене лучше добавить роль в БД
-    const isAdmin = ADMIN_EMAILS.includes(user.email) || user.email.endsWith('@admin.com');
-
-    if (!isAdmin) {
+    if (!isAdmin(user.email)) {
       return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 

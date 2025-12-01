@@ -1,10 +1,14 @@
 import path from 'path';
 import sqlite3 from 'sqlite3';
+import { DATABASE_PATH, VIDEO_EXPIRY_DAYS } from './config';
 
-const DB_PATH = path.join(process.cwd(), 'database.db');
+const DB_PATH = DATABASE_PATH.startsWith('./')
+  ? path.join(process.cwd(), DATABASE_PATH.slice(2))
+  : DATABASE_PATH;
 
-// Создаём промис-версии методов sqlite3
-function getDb(): Promise<sqlite3.Database> {
+// === Базовые функции работы с БД ===
+
+export function getDb(): Promise<sqlite3.Database> {
   return new Promise((resolve, reject) => {
     const db = new sqlite3.Database(DB_PATH, (err) => {
       if (err) {
@@ -16,7 +20,11 @@ function getDb(): Promise<sqlite3.Database> {
   });
 }
 
-function run(db: sqlite3.Database, sql: string, params: any[] = []): Promise<sqlite3.RunResult> {
+export function run(
+  db: sqlite3.Database,
+  sql: string,
+  params: any[] = []
+): Promise<sqlite3.RunResult> {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
       if (err) {
@@ -28,7 +36,7 @@ function run(db: sqlite3.Database, sql: string, params: any[] = []): Promise<sql
   });
 }
 
-function get(db: sqlite3.Database, sql: string, params: any[] = []): Promise<any> {
+export function get(db: sqlite3.Database, sql: string, params: any[] = []): Promise<any> {
   return new Promise((resolve, reject) => {
     db.get(sql, params, (err, row) => {
       if (err) {
@@ -40,7 +48,7 @@ function get(db: sqlite3.Database, sql: string, params: any[] = []): Promise<any
   });
 }
 
-function all(db: sqlite3.Database, sql: string, params: any[] = []): Promise<any[]> {
+export function all(db: sqlite3.Database, sql: string, params: any[] = []): Promise<any[]> {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
       if (err) {
@@ -52,7 +60,23 @@ function all(db: sqlite3.Database, sql: string, params: any[] = []): Promise<any
   });
 }
 
-// Инициализация базы данных
+// === Singleton для инициализации БД ===
+
+let dbInitPromise: Promise<void> | null = null;
+
+export function ensureDbInitialized(): Promise<void> {
+  if (!dbInitPromise) {
+    dbInitPromise = initDb().catch((err) => {
+      console.error('DB init error:', err);
+      dbInitPromise = null;
+      throw err;
+    });
+  }
+  return dbInitPromise;
+}
+
+// === Инициализация базы данных ===
+
 export async function initDb() {
   const db = await getDb();
 
@@ -177,7 +201,8 @@ export async function initDb() {
   console.log('Database initialized successfully');
 }
 
-// Получить пользователя по email
+// === Функции для работы с пользователями ===
+
 export async function getUserByEmail(email: string) {
   const db = await getDb();
   const user = await get(db, 'SELECT * FROM users WHERE email = ?', [email]);
@@ -185,7 +210,6 @@ export async function getUserByEmail(email: string) {
   return user;
 }
 
-// Получить пользователя по ID
 export async function getUserById(id: number) {
   const db = await getDb();
   const user = await get(
@@ -197,7 +221,6 @@ export async function getUserById(id: number) {
   return user;
 }
 
-// Создать пользователя
 export async function createUser(
   email: string,
   password: string,
@@ -215,12 +238,12 @@ export async function createUser(
   return result.lastID;
 }
 
-// Генерация номера заказа
+// === Функции для работы с заказами ===
+
 function generateOrderNumber(): string {
   return `ORD${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
-// Создать заказ
 export async function createOrder(
   userId: number,
   childName: string,
@@ -242,14 +265,12 @@ export async function createOrder(
   return { orderId: result.lastID, orderNumber };
 }
 
-// Обновить заказ с task_id
 export async function updateOrderTaskId(orderId: number, taskId: number) {
   const db = await getDb();
   await run(db, 'UPDATE orders SET task_id = ? WHERE id = ?', [taskId, orderId]);
   db.close();
 }
 
-// Обновить статус заказа
 export async function updateOrderStatus(
   taskId: number,
   status: string,
@@ -259,7 +280,9 @@ export async function updateOrderStatus(
 ) {
   const db = await getDb();
   const completedAt = status === 'completed' ? new Date().toISOString() : null;
-  const expiresAt = videoUrl ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null; // 7 дней
+  const expiresAt = videoUrl
+    ? new Date(Date.now() + VIDEO_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    : null;
 
   if (videoUrl) {
     await run(
@@ -281,7 +304,6 @@ export async function updateOrderStatus(
   db.close();
 }
 
-// Получить все заказы пользователя
 export async function getUserOrders(userId: number, limit: number = 50) {
   const db = await getDb();
   const orders = await all(
@@ -297,7 +319,6 @@ export async function getUserOrders(userId: number, limit: number = 50) {
   return orders;
 }
 
-// Получить заказ по task_id
 export async function getOrderByTaskId(taskId: number) {
   const db = await getDb();
   const order = await get(db, 'SELECT * FROM orders WHERE task_id = ?', [taskId]);
@@ -305,7 +326,6 @@ export async function getOrderByTaskId(taskId: number) {
   return order;
 }
 
-// Получить заказ по ID
 export async function getOrderById(orderId: number) {
   const db = await getDb();
   const order = await get(db, 'SELECT * FROM orders WHERE id = ?', [orderId]);
@@ -313,7 +333,8 @@ export async function getOrderById(orderId: number) {
   return order;
 }
 
-// Работа с балансом
+// === Функции для работы с балансом ===
+
 export async function getUserBalance(userId: number): Promise<number> {
   const db = await getDb();
   const user = await get(db, 'SELECT balance FROM users WHERE id = ?', [userId]);
@@ -358,7 +379,27 @@ export async function getUserBalanceTransactions(userId: number) {
   return transactions;
 }
 
-// Настройки
+export async function getBalanceTransactionByInvoiceId(invoiceId: string) {
+  const db = await getDb();
+  const transaction = await get(db, 'SELECT * FROM balance_transactions WHERE invoice_id = ?', [
+    invoiceId,
+  ]);
+  db.close();
+  return transaction;
+}
+
+export async function completeBalanceTransaction(transactionId: number) {
+  const db = await getDb();
+  await run(db, 'UPDATE balance_transactions SET status = ?, completed_at = ? WHERE id = ?', [
+    'completed',
+    new Date().toISOString(),
+    transactionId,
+  ]);
+  db.close();
+}
+
+// === Функции для работы с настройками ===
+
 export async function getSetting(key: string): Promise<string | null> {
   const db = await getDb();
   const setting = await get(db, 'SELECT value FROM settings WHERE key = ?', [key]);
@@ -376,9 +417,8 @@ export async function setSetting(key: string, value: string) {
   db.close();
 }
 
-// ============ Функции для работы с очередью видео ============
+// === Функции для работы с очередью видео ===
 
-// Добавить задачу в очередь
 export async function addToQueue(
   orderId: number,
   taskType: 'intro' | 'outro' | 'personal',
@@ -395,7 +435,6 @@ export async function addToQueue(
   return result.lastID as number;
 }
 
-// Получить следующую задачу из очереди (pending с наивысшим приоритетом)
 export async function getNextQueueTask(orderId: number): Promise<{
   id: number;
   order_id: number;
@@ -417,7 +456,6 @@ export async function getNextQueueTask(orderId: number): Promise<{
   return task || null;
 }
 
-// Получить текущую обрабатываемую задачу
 export async function getCurrentQueueTask(orderId: number): Promise<{
   id: number;
   order_id: number;
@@ -438,7 +476,6 @@ export async function getCurrentQueueTask(orderId: number): Promise<{
   return task || null;
 }
 
-// Обновить статус задачи в очереди
 export async function updateQueueTaskStatus(
   queueId: number,
   status: 'pending' | 'processing' | 'completed' | 'failed',
@@ -453,16 +490,15 @@ export async function updateQueueTaskStatus(
       [status, taskId, errorMessage || null, queueId]
     );
   } else {
-    await run(
-      db,
-      `UPDATE video_queue SET status = ?, error_message = ? WHERE id = ?`,
-      [status, errorMessage || null, queueId]
-    );
+    await run(db, `UPDATE video_queue SET status = ?, error_message = ? WHERE id = ?`, [
+      status,
+      errorMessage || null,
+      queueId,
+    ]);
   }
   db.close();
 }
 
-// Получить прогресс очереди для заказа
 export async function getQueueProgress(orderId: number): Promise<{
   totalTasks: number;
   completedTasks: number;
@@ -500,7 +536,6 @@ export async function getQueueProgress(orderId: number): Promise<{
   };
 }
 
-// Получить все задачи очереди для заказа
 export async function getQueueTasks(orderId: number): Promise<
   Array<{
     id: number;
@@ -522,9 +557,8 @@ export async function getQueueTasks(orderId: number): Promise<
   return tasks;
 }
 
-// ============ Функции для работы с универсальными видео ============
+// === Функции для работы с универсальными видео ===
 
-// Сохранить/обновить информацию об универсальном видео
 export async function setUniversalVideo(
   videoType: 'intro' | 'outro',
   taskId: number,
@@ -540,10 +574,7 @@ export async function setUniversalVideo(
   db.close();
 }
 
-// Получить информацию об универсальном видео
-export async function getUniversalVideo(
-  videoType: 'intro' | 'outro'
-): Promise<{
+export async function getUniversalVideo(videoType: 'intro' | 'outro'): Promise<{
   task_id: number;
   status: string;
   video_url: string | null;
@@ -560,7 +591,6 @@ export async function getUniversalVideo(
   return video || null;
 }
 
-// Обновить статус универсального видео
 export async function updateUniversalVideoStatus(
   videoType: 'intro' | 'outro',
   status: 'pending' | 'processing' | 'completed' | 'failed',
@@ -581,4 +611,58 @@ export async function updateUniversalVideoStatus(
     );
   }
   db.close();
+}
+
+// === Функции для админки ===
+
+export async function getAllUsers() {
+  const db = await getDb();
+  const users = await all(
+    db,
+    `SELECT u.id, u.email, u.nickname, u.first_name, u.last_name, u.balance, u.created_at,
+            (SELECT COUNT(*) FROM orders WHERE user_id = u.id) as orders_count
+     FROM users u
+     ORDER BY u.created_at DESC`
+  );
+  db.close();
+  return users;
+}
+
+export async function searchUsers(query: string) {
+  const db = await getDb();
+  const searchPattern = `%${query}%`;
+  const users = await all(
+    db,
+    `SELECT u.id, u.email, u.nickname, u.first_name, u.last_name, u.balance, u.created_at,
+            (SELECT COUNT(*) FROM orders WHERE user_id = u.id) as orders_count
+     FROM users u
+     WHERE u.email LIKE ? OR u.nickname LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?
+     ORDER BY u.created_at DESC`,
+    [searchPattern, searchPattern, searchPattern, searchPattern]
+  );
+  db.close();
+  return users;
+}
+
+export async function getUserOrdersAdmin(userId: number) {
+  const db = await getDb();
+  const orders = await all(
+    db,
+    `SELECT id, order_number, service_name, status, created_at, video_url
+     FROM orders WHERE user_id = ? ORDER BY created_at DESC`,
+    [userId]
+  );
+  db.close();
+  return orders;
+}
+
+export async function getUserTransactionsAdmin(userId: number) {
+  const db = await getDb();
+  const transactions = await all(
+    db,
+    `SELECT * FROM balance_transactions WHERE user_id = ? ORDER BY created_at DESC`,
+    [userId]
+  );
+  db.close();
+  return transactions;
 }

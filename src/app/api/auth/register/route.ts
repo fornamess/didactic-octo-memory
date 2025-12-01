@@ -1,17 +1,6 @@
+import { generateToken, hashPassword } from '@/lib/auth';
+import { createUser, ensureDbInitialized, getUserByEmail } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { createUser, getUserByEmail, initDb } from '@/lib/db';
-import { hashPassword, generateToken } from '@/lib/auth';
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,19 +10,13 @@ export async function POST(request: NextRequest) {
 
     // Валидация
     if (!email || !password || !nickname || !firstName || !lastName) {
-      return NextResponse.json(
-        { error: 'Все поля обязательны' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
     }
 
     // Проверка формата email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: 'Неверный формат email' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Неверный формат email' }, { status: 400 });
     }
 
     if (!agreedToTerms) {
@@ -67,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     // Генерируем токен
     const token = generateToken({
-      id: userId,
+      id: userId as number,
       email,
       name: nickname,
     });
@@ -85,9 +68,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    return NextResponse.json(
-      { error: 'Ошибка при регистрации' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Ошибка при регистрации' }, { status: 500 });
   }
 }

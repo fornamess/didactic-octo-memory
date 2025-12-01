@@ -1,8 +1,9 @@
 import { getUserFromRequest } from '@/lib/auth';
+import { GENERATION_TIMEOUT_MINUTES } from '@/lib/config';
 import {
+  ensureDbInitialized,
   getOrderByTaskId,
   getUniversalVideo,
-  initDb,
   setUniversalVideo,
   updateOrderStatus,
   updateUniversalVideoStatus,
@@ -22,16 +23,7 @@ import {
 import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
 
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
+const GENERATION_TIMEOUT_MS = GENERATION_TIMEOUT_MINUTES * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,9 +60,6 @@ export async function GET(request: NextRequest) {
     const introDb = await getUniversalVideo('intro');
     const outroDb = await getUniversalVideo('outro');
 
-    // Таймаут для генерации (15 минут)
-    const GENERATION_TIMEOUT_MS = 15 * 60 * 1000;
-
     // Проверяем все задачи параллельно
     const statusChecks: Promise<void>[] = [];
 
@@ -78,7 +67,6 @@ export async function GET(request: NextRequest) {
     const customerId = `web_user_${user.id}`;
 
     // Если intro файла нет и нет активной генерации - автоматически запускаем
-    // НЕ запускаем если статус 'processing' (уже генерируется)
     if (!introReady && (!introDb || introDb.status === 'failed')) {
       console.log('Intro not found and no active generation, auto-starting...');
       statusChecks.push(
@@ -94,8 +82,6 @@ export async function GET(request: NextRequest) {
     }
     // Если intro файла нет, но есть активная генерация - проверяем
     else if (!introReady && introDb && introDb.task_id && introDb.status === 'processing') {
-      // Парсим дату из SQLite (формат: '2025-12-01 16:48:21' - локальное время)
-      // Добавляем 'Z' чтобы парсить как UTC, или используем replace для корректного парсинга
       const dateStr = (introDb.updated_at || introDb.created_at).replace(' ', 'T') + 'Z';
       const updatedAt = new Date(dateStr).getTime();
       const now = Date.now();
@@ -110,7 +96,6 @@ export async function GET(request: NextRequest) {
           `Intro generation timeout (${Math.round(timePassed / 60000)} min), resetting...`
         );
         await updateUniversalVideoStatus('intro', 'failed');
-        // Не проверяем статус, просто ждём следующего запуска генерации
       } else {
         statusChecks.push(
           checkTaskStatus(introDb.task_id).then(async (introStatus) => {
@@ -135,7 +120,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Если outro файла нет и нет активной генерации - автоматически запускаем
-    // НЕ запускаем если статус 'processing' (уже генерируется)
     if (!outroReady && (!outroDb || outroDb.status === 'failed')) {
       console.log('Outro not found and no active generation, auto-starting...');
       statusChecks.push(
@@ -151,7 +135,6 @@ export async function GET(request: NextRequest) {
     }
     // Если outro файла нет, но есть активная генерация - проверяем
     else if (!outroReady && outroDb && outroDb.task_id && outroDb.status === 'processing') {
-      // Парсим дату из SQLite (формат: '2025-12-01 16:48:21' - локальное время)
       const dateStr = (outroDb.updated_at || outroDb.created_at).replace(' ', 'T') + 'Z';
       const updatedAt = new Date(dateStr).getTime();
       const now = Date.now();
@@ -202,7 +185,6 @@ export async function GET(request: NextRequest) {
 
     // Если API вернул ошибку TOO_MANY_REQUESTS, но intro ещё генерируется - продолжаем
     if (!personalStatus.success) {
-      // Если intro ещё не готов - не возвращаем ошибку, продолжаем ждать
       if (!introReady || !outroReady) {
         return NextResponse.json({
           success: true,
@@ -257,10 +239,7 @@ export async function GET(request: NextRequest) {
 
           if (concatenated) {
             console.log('Videos concatenated successfully!');
-            // Формируем URL для финального видео
             const finalVideoUrl = `/videos/final/final_${order.id}.mp4`;
-
-            // Обновляем статус в БД
             await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
 
             return NextResponse.json({

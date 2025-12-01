@@ -7,10 +7,29 @@ services:
       dockerfile: Dockerfile
     container_name: dedmoroz-video
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - NODE_ENV=production
       - FFMPEG_PATH=/usr/bin/ffmpeg
+      # Безопасность
+      - JWT_SECRET=${JWT_SECRET:-984Y39G8YSDKUGHLYIEGP;ASG9UESLKUKY4LGI8ZYLRIGHKZ8IR8G7HUIS8HLEHLRIUGULIALUHERULHIGLUKIEFUGYUKIGDFYK23T54YHFD}
+      # API Yes AI
+      - YES_AI_API_BASE=${YES_AI_API_BASE:-https://api.yesai.su/v2}
+      - YES_AI_TOKEN=${YES_AI_TOKEN}
+      # Администраторы
+      - ADMIN_EMAILS=${ADMIN_EMAILS:-system@gmail.com}
+      # Платёжная система
+      - BITBANKER_API_KEY=${BITBANKER_API_KEY}
+      - BITBANKER_SECRET=${BITBANKER_SECRET}
+      # URL приложения
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      # Поддержка
+      - SUPPORT_TELEGRAM=${SUPPORT_TELEGRAM:-@your_support_bot}
+      - SUPPORT_EMAIL=${SUPPORT_EMAIL:-support@your-domain.com}
+      # Настройки сервиса
+      - SERVICE_COST=${SERVICE_COST:-0}
+      - VIDEO_EXPIRY_DAYS=${VIDEO_EXPIRY_DAYS:-7}
+      - GENERATION_TIMEOUT_MINUTES=${GENERATION_TIMEOUT_MINUTES:-15}
     volumes:
       # Персистентное хранилище для БД
       - dedmoroz-db:/app
@@ -18,7 +37,7 @@ services:
       - dedmoroz-videos:/app/public/videos
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:3000']
       interval: 30s
       timeout: 10s
       retries: 3

@@ -1,10 +1,13 @@
 import { getUserFromRequest } from '@/lib/auth';
+import { SERVICE_COST } from '@/lib/config';
 import {
   createOrder,
+  ensureDbInitialized,
   getUniversalVideo,
-  initDb,
+  getUserBalance,
   setUniversalVideo,
   updateOrderTaskId,
+  updateUserBalance,
 } from '@/lib/db';
 import {
   checkUniversalVideosExist,
@@ -14,18 +17,6 @@ import {
   generatePersonalPrompt,
 } from '@/lib/video-generator';
 import { NextRequest, NextResponse } from 'next/server';
-
-// Инициализируем БД при первом импорте
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
 
 interface RequestBody {
   childName: string;
@@ -56,8 +47,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // БЕСПЛАТНО - без проверки баланса
-    const COST = 0;
+    // Проверка баланса (если сервис платный)
+    if (SERVICE_COST > 0) {
+      const balance = await getUserBalance(user.id);
+      if (balance < SERVICE_COST) {
+        return NextResponse.json(
+          { error: `Недостаточно средств. Требуется: ${SERVICE_COST} Койнов` },
+          { status: 400 }
+        );
+      }
+    }
 
     // Создаём заказ в БД
     const { orderId, orderNumber } = await createOrder(
@@ -67,8 +66,13 @@ export async function POST(request: NextRequest) {
       photo1Comment,
       photo2 || '',
       photo2Comment,
-      COST
+      SERVICE_COST
     );
+
+    // Списываем средства (если платно)
+    if (SERVICE_COST > 0) {
+      await updateUserBalance(user.id, -SERVICE_COST);
+    }
 
     // Проверяем наличие универсальных видео (файлы на диске)
     const universalVideos = checkUniversalVideosExist();
@@ -142,6 +146,10 @@ export async function POST(request: NextRequest) {
 
     // Проверяем, что персональное видео создано
     if (!personalTaskId) {
+      // Возвращаем средства при ошибке
+      if (SERVICE_COST > 0) {
+        await updateUserBalance(user.id, SERVICE_COST);
+      }
       return NextResponse.json({ error: 'Ошибка создания персонального видео' }, { status: 500 });
     }
 
@@ -151,6 +159,9 @@ export async function POST(request: NextRequest) {
     // Находим taskId для intro и outro
     const introTask = tasksToGenerate.find((t) => t.type === 'intro');
     const outroTask = tasksToGenerate.find((t) => t.type === 'outro');
+
+    // Получаем обновлённый баланс
+    const newBalance = await getUserBalance(user.id);
 
     return NextResponse.json({
       success: true,
@@ -163,6 +174,7 @@ export async function POST(request: NextRequest) {
       childName: childName,
       tasks: tasksToGenerate,
       universalVideosExist: universalVideos,
+      balance: newBalance,
     });
   } catch (error) {
     console.error('Error in generate-video:', error);

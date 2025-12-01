@@ -1,17 +1,6 @@
 import { getUserFromRequest } from '@/lib/auth';
-import { getUserOrders, initDb } from '@/lib/db';
+import { ensureDbInitialized, getUserOrders } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
 
 export async function GET(request: NextRequest) {
   try {

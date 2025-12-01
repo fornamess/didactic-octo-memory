@@ -1,19 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
-import { getSetting, setSetting, initDb } from '@/lib/db';
-
-const ADMIN_EMAILS = ['admin@example.com'];
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
+import { isAdmin } from '@/lib/config';
+import { ensureDbInitialized, getSetting, setSetting } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,8 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    const isAdmin = ADMIN_EMAILS.includes(user.email) || user.email.endsWith('@admin.com');
-    if (!isAdmin) {
+    if (!isAdmin(user.email)) {
       return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 
@@ -54,8 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    const isAdmin = ADMIN_EMAILS.includes(user.email) || user.email.endsWith('@admin.com');
-    if (!isAdmin) {
+    if (!isAdmin(user.email)) {
       return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 

@@ -1,17 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
-import { getUserBalance, initDb } from '@/lib/db';
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
+import { ensureDbInitialized, getUserBalance } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,9 +19,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Get balance error:', error);
-    return NextResponse.json(
-      { error: 'Ошибка при получении баланса' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Ошибка при получении баланса' }, { status: 500 });
   }
 }

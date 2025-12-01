@@ -1,17 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail, initDb } from '@/lib/db';
 import { comparePassword, generateToken } from '@/lib/auth';
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
+import { ensureDbInitialized, getUserByEmail } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,28 +10,19 @@ export async function POST(request: NextRequest) {
 
     // Валидация
     if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email и пароль обязательны' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Email и пароль обязательны' }, { status: 400 });
     }
 
     // Находим пользователя
     const user = await getUserByEmail(email);
     if (!user) {
-      return NextResponse.json(
-        { error: 'Неверный email или пароль' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 });
     }
 
     // Проверяем пароль
     const isValid = await comparePassword(password, user.password);
     if (!isValid) {
-      return NextResponse.json(
-        { error: 'Неверный email или пароль' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Неверный email или пароль' }, { status: 401 });
     }
 
     // Генерируем токен
@@ -66,9 +46,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'Ошибка при входе' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Ошибка при входе' }, { status: 500 });
   }
 }

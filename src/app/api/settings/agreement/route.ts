@@ -1,16 +1,5 @@
+import { ensureDbInitialized, getSetting } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { getSetting, initDb } from '@/lib/db';
-
-let dbInitPromise: Promise<void> | null = null;
-function ensureDbInitialized() {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch((err) => {
-      console.error('DB init error:', err);
-      dbInitPromise = null;
-    });
-  }
-  return dbInitPromise;
-}
 
 export async function GET() {
   try {
