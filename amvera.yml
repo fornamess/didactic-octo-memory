@@ -1,17 +1,13 @@
----
-version: null
 meta:
   environment: docker
   toolchain:
     name: docker
-    version: latest
 build:
   dockerfile: Dockerfile
   skip: false
 run:
-  image: ""
-  command: ""
-  args: ""
+  image: ''
+  command: ''
+  args: ''
   persistenceMount: /data
-  containerPort: 3000
-serviceType: compute
+  containerPort: '3000'

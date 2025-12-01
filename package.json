@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "init-db": "tsx src/scripts/init-db.ts"
+    "init-db": "tsx src/scripts/init-db.ts",
+    "add-system-admin": "tsx src/scripts/add-system-admin.ts"
   },
   "dependencies": {
     "@types/fluent-ffmpeg": "^2.1.28",

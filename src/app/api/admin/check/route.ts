@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
 import { initDb } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
 // Список email администраторов (можно вынести в БД или env)
-const ADMIN_EMAILS = ['admin@example.com'];
+const ADMIN_EMAILS = ['system@gmail.com'];
 
 let dbInitPromise: Promise<void> | null = null;
 function ensureDbInitialized() {
