@@ -1,7 +1,13 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Standalone режим для Docker
+  output: 'standalone',
+
+  // Настройки для обработки внешних пакетов
+  experimental: {
+    serverComponentsExternalPackages: ['sqlite3', 'fluent-ffmpeg'],
+  },
 };
 
 export default nextConfig;
