@@ -277,14 +277,15 @@ export async function GET(request: NextRequest) {
 
     // Если персональное видео готово
     if (isPersonalCompleted && personalVideoUrl) {
-      // Скачиваем персональное видео
+      // Скачиваем персональное видео (если еще не скачано)
       const personalPath = getPersonalVideoPath(order.id);
 
       if (!fs.existsSync(personalPath)) {
-        console.log('Downloading personal video...');
+        console.log(`📥 Personal video not found locally, downloading from: ${personalVideoUrl}`);
+        console.log(`   Saving to: ${personalPath}`);
         const downloaded = await downloadVideo(personalVideoUrl, personalPath);
         if (!downloaded) {
-          console.error('Failed to download personal video');
+          console.error('❌ Failed to download personal video');
           return NextResponse.json({
             success: true,
             taskId: Number(taskId),
@@ -295,6 +296,15 @@ export async function GET(request: NextRequest) {
             message: 'Ошибка загрузки персонального видео',
           });
         }
+        console.log(`✅ Personal video downloaded successfully`);
+      } else {
+        const personalFileSize = fs.statSync(personalPath).size;
+        console.log(`✅ Personal video already exists locally: ${personalPath}`);
+        console.log(
+          `   File size: ${personalFileSize} bytes (${(personalFileSize / 1024 / 1024).toFixed(
+            2
+          )} MB)`
+        );
       }
 
       // Если все части готовы - склеиваем
@@ -309,32 +319,81 @@ export async function GET(request: NextRequest) {
         const outroSize = fs.existsSync(universalPaths.outro)
           ? fs.statSync(universalPaths.outro).size
           : 0;
-        const expectedMinSize = Math.min(introSize, personalSize, outroSize) * 2; // Минимум должно быть больше самой маленькой части
+
+        // Исправленная формула: сумма всех частей * 0.7 (коэффициент учитывает перекодирование)
+        const totalPartsSize = introSize + personalSize + outroSize;
+        const expectedMinSize = totalPartsSize * 0.7;
+
+        console.log('=== Video Size Validation ===');
+        console.log(`Intro size: ${introSize} bytes (${(introSize / 1024 / 1024).toFixed(2)} MB)`);
+        console.log(
+          `Personal size: ${personalSize} bytes (${(personalSize / 1024 / 1024).toFixed(2)} MB)`
+        );
+        console.log(`Outro size: ${outroSize} bytes (${(outroSize / 1024 / 1024).toFixed(2)} MB)`);
+        console.log(
+          `Total parts size: ${totalPartsSize} bytes (${(totalPartsSize / 1024 / 1024).toFixed(
+            2
+          )} MB)`
+        );
+        console.log(
+          `Expected minimum final size: ${expectedMinSize} bytes (${(
+            expectedMinSize /
+            1024 /
+            1024
+          ).toFixed(2)} MB)`
+        );
+        console.log(`Order status: ${order.status}`);
 
         let needsConcatenation = !fs.existsSync(finalPath);
 
+        // Принудительная проверка размера даже для завершенных заказов
         // Если файл существует, проверяем его размер
         if (fs.existsSync(finalPath)) {
           const finalSize = fs.statSync(finalPath).size;
           console.log(
-            `Final video exists: ${finalPath}, size: ${finalSize}, expected min: ${expectedMinSize}`
+            `Final video exists: ${finalPath}, size: ${finalSize} bytes (${(
+              finalSize /
+              1024 /
+              1024
+            ).toFixed(2)} MB)`
           );
-          // Если финальный файл слишком маленький (меньше суммы всех частей), пересоздаём
+          console.log(
+            `Expected min: ${expectedMinSize} bytes (${(expectedMinSize / 1024 / 1024).toFixed(
+              2
+            )} MB)`
+          );
+
+          // Если финальный файл слишком маленький (меньше 70% от суммы всех частей), пересоздаём
           if (finalSize < expectedMinSize) {
             console.log(
-              `Final video too small (${finalSize} < ${expectedMinSize}), will recreate...`
+              `❌ Final video too small: ${finalSize} < ${expectedMinSize} (${(
+                (finalSize / expectedMinSize) *
+                100
+              ).toFixed(1)}% of expected)`
             );
+            console.log(`🗑️ Deleting incorrect final video and will recreate...`);
             // Удаляем неправильный файл
             fs.unlinkSync(finalPath);
             needsConcatenation = true;
+          } else {
+            console.log(
+              `✅ Final video size is OK: ${finalSize} >= ${expectedMinSize} (${(
+                (finalSize / expectedMinSize) *
+                100
+              ).toFixed(1)}% of expected)`
+            );
           }
+        } else {
+          console.log(`Final video does not exist, will create: ${finalPath}`);
         }
 
         if (needsConcatenation) {
-          console.log('All parts ready, concatenating videos...');
-          console.log(
-            `File sizes - Intro: ${introSize}, Personal: ${personalSize}, Outro: ${outroSize}`
-          );
+          console.log('🔄 All parts ready, starting video concatenation...');
+          console.log(`   Intro: ${universalPaths.intro}`);
+          console.log(`   Personal: ${personalPath}`);
+          console.log(`   Outro: ${universalPaths.outro}`);
+          console.log(`   Output: ${finalPath}`);
+
           const concatenated = await concatenateVideos(
             universalPaths.intro,
             personalPath,
@@ -346,11 +405,38 @@ export async function GET(request: NextRequest) {
             // Проверяем что файл создан и имеет правильный размер
             if (fs.existsSync(finalPath)) {
               const finalSize = fs.statSync(finalPath).size;
-              console.log(`Videos concatenated successfully! Final size: ${finalSize}`);
+              console.log(`✅ Videos concatenated successfully!`);
+              console.log(
+                `   Final video size: ${finalSize} bytes (${(finalSize / 1024 / 1024).toFixed(
+                  2
+                )} MB)`
+              );
+              console.log(
+                `   Expected minimum: ${expectedMinSize} bytes (${(
+                  expectedMinSize /
+                  1024 /
+                  1024
+                ).toFixed(2)} MB)`
+              );
+
               if (finalSize < expectedMinSize) {
                 console.error(
-                  `WARNING: Final video size (${finalSize}) is too small, concatenation may have failed`
+                  `⚠️ WARNING: Final video size (${finalSize} bytes = ${(
+                    finalSize /
+                    1024 /
+                    1024
+                  ).toFixed(2)} MB) is too small!`
                 );
+                console.error(
+                  `   Expected at least: ${expectedMinSize} bytes (${(
+                    expectedMinSize /
+                    1024 /
+                    1024
+                  ).toFixed(2)} MB)`
+                );
+                console.error(`   Concatenation may have failed or video is incomplete.`);
+              } else {
+                console.log(`   ✅ Final video size validation passed!`);
               }
             }
 
@@ -392,11 +478,13 @@ export async function GET(request: NextRequest) {
         } else {
           // Финальное видео уже существует и имеет правильный размер
           const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
-          console.log(`Using existing final video: ${finalVideoUrl}`);
+          console.log(`✅ Using existing final video (size validated): ${finalVideoUrl}`);
 
           // Обновляем URL в базе, если он отличается (например, был сохранен персональный или интро)
           if (order.video_url !== finalVideoUrl) {
-            console.log(`Updating video_url in DB from ${order.video_url} to ${finalVideoUrl}`);
+            console.log(
+              `📝 Updating video_url in DB from "${order.video_url}" to "${finalVideoUrl}"`
+            );
             await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
           }
 
