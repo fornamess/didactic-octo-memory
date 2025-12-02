@@ -335,6 +335,8 @@ file '${outroPath.replace(/\\/g, '/')}'`;
           console.log('Concat list content:\n', listContent);
           fs.writeFileSync(listPath, listContent);
 
+          // Используем ultrafast preset для минимизации использования ресурсов
+          // и избежания SIGKILL от системы
           ffmpeg()
             .input(listPath)
             .inputOptions(['-f', 'concat', '-safe', '0'])
@@ -344,11 +346,13 @@ file '${outroPath.replace(/\\/g, '/')}'`;
               '-c:a',
               'aac',
               '-preset',
-              'fast',
+              'ultrafast', // Самый быстрый preset - меньше ресурсов, больше размер файла
               '-crf',
-              '23',
+              '28', // Чуть хуже качество, но быстрее
               '-movflags',
               '+faststart',
+              '-threads',
+              '2', // Ограничиваем потоки для меньшего использования CPU
               '-y', // Перезаписывать выходной файл
             ])
             .output(outputPath)
@@ -357,7 +361,11 @@ file '${outroPath.replace(/\\/g, '/')}'`;
             })
             .on('stderr', (stderrLine) => {
               // Логируем stderr для отладки
-              if (stderrLine.includes('error') || stderrLine.includes('Error')) {
+              if (
+                stderrLine.includes('error') ||
+                stderrLine.includes('Error') ||
+                stderrLine.includes('killed')
+              ) {
                 console.error('FFmpeg stderr:', stderrLine);
               }
             })
@@ -372,10 +380,27 @@ file '${outroPath.replace(/\\/g, '/')}'`;
                 fs.unlinkSync(listPath);
               }
 
-              // Проверяем что выходной файл создан
+              // Проверяем что выходной файл создан и имеет адекватный размер
               if (fs.existsSync(outputPath)) {
                 const outputSize = fs.statSync(outputPath).size;
                 console.log('Video concatenation completed:', outputPath, 'size:', outputSize);
+
+                // Проверяем что файл не слишком маленький (не был прерван)
+                const expectedMinSize = (introSize + personalSize + outroSize) * 0.5;
+                if (outputSize < expectedMinSize) {
+                  console.error(
+                    `Warning: Output file size (${outputSize}) is too small, expected at least ${expectedMinSize}`
+                  );
+                  // Удаляем некорректный файл
+                  try {
+                    fs.unlinkSync(outputPath);
+                  } catch (e) {
+                    console.error('Failed to delete incorrect output file:', e);
+                  }
+                  resolve(false);
+                  return;
+                }
+
                 resolve(true);
               } else {
                 console.error('Output file was not created:', outputPath);
@@ -384,15 +409,34 @@ file '${outroPath.replace(/\\/g, '/')}'`;
             })
             .on('error', (err: Error, stdout, stderr) => {
               console.error('FFmpeg error:', err.message);
+              if (err.message.includes('killed') || err.message.includes('SIGKILL')) {
+                console.error('⚠️ FFmpeg was killed by system (likely out of memory/timeout)');
+              }
               console.error('FFmpeg stdout:', stdout);
               console.error('FFmpeg stderr:', stderr);
               // Удаляем временный файл при ошибке
               if (fs.existsSync(listPath)) {
                 fs.unlinkSync(listPath);
               }
+              // Удаляем некорректный выходной файл если он существует
+              if (fs.existsSync(outputPath)) {
+                try {
+                  const outputSize = fs.statSync(outputPath).size;
+                  if (outputSize < 100000) {
+                    // Если файл очень маленький, вероятно процесс был прерван
+                    console.log('Removing incomplete output file');
+                    fs.unlinkSync(outputPath);
+                  }
+                } catch (e) {
+                  console.error('Error checking/deleting output file:', e);
+                }
+              }
               resolve(false);
             })
             .run();
+
+          // Сохраняем ссылку на процесс для возможного убийства при таймауте
+          // (пока не реализуем таймаут, но оставляем возможность)
         })
         .catch((err) => {
           console.error('FFmpeg import error:', err);
