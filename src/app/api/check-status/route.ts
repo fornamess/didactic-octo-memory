@@ -41,6 +41,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'taskId обязателен' }, { status: 400 });
     }
 
+    console.log(
+      `🔎 [CHECK-STATUS] Starting status check for taskId: ${taskId}, userId: ${user.id}`
+    );
+
     // Проверяем что заказ принадлежит пользователю
     const order = await getOrderByTaskId(Number(taskId));
     if (!order) {
@@ -49,6 +53,67 @@ export async function GET(request: NextRequest) {
 
     if (order.user_id !== user.id) {
       return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
+    }
+
+    // ВАЖНО: Для завершенных заказов всегда проверяем размер финального видео
+    // Это исправляет проблему со старыми 15-секундными видео
+    console.log(`📋 Order status: ${order.status}, video_url: ${order.video_url || 'none'}`);
+    if (order.status === 'completed' && order.video_url) {
+      console.log(
+        `🔍 [COMPLETED ORDER CHECK] Order ${order.id} is completed, checking final video size...`
+      );
+      console.log(`   Order video_url: ${order.video_url}`);
+      const universalPaths = getUniversalVideoPaths();
+      const finalPath = getFinalVideoPath(order.id);
+      const personalPath = getPersonalVideoPath(order.id);
+      console.log(`   Final path: ${finalPath}`);
+      console.log(`   Personal path: ${personalPath}`);
+
+      // Если финальное видео существует - проверяем его размер
+      if (fs.existsSync(finalPath)) {
+        // Проверяем размеры всех частей
+        const introSize = fs.existsSync(universalPaths.intro)
+          ? fs.statSync(universalPaths.intro).size
+          : 0;
+        const personalSize = fs.existsSync(personalPath) ? fs.statSync(personalPath).size : 0;
+        const outroSize = fs.existsSync(universalPaths.outro)
+          ? fs.statSync(universalPaths.outro).size
+          : 0;
+
+        // Если хотя бы одна часть существует, можем проверить размер
+        if (introSize > 0 || personalSize > 0 || outroSize > 0) {
+          const totalPartsSize = introSize + personalSize + outroSize;
+          const expectedMinSize = totalPartsSize * 0.7;
+          const finalSize = fs.statSync(finalPath).size;
+
+          console.log(`📊 Final video size check for completed order:`);
+          console.log(
+            `   Final size: ${finalSize} bytes (${(finalSize / 1024 / 1024).toFixed(2)} MB)`
+          );
+          console.log(
+            `   Expected min: ${expectedMinSize} bytes (${(expectedMinSize / 1024 / 1024).toFixed(
+              2
+            )} MB)`
+          );
+          console.log(
+            `   Intro: ${introSize} bytes, Personal: ${personalSize} bytes, Outro: ${outroSize} bytes`
+          );
+
+          // Если финальное видео слишком маленькое - удаляем для пересоздания
+          if (finalSize < expectedMinSize && expectedMinSize > 0) {
+            console.log(
+              `⚠️ Completed order has invalid final video size! ${finalSize} < ${expectedMinSize}`
+            );
+            console.log(`🗑️ Deleting incorrect final video to force recreation...`);
+            try {
+              fs.unlinkSync(finalPath);
+              console.log(`✅ Deleted incorrect final video, will be recreated below`);
+            } catch (err) {
+              console.error(`❌ Failed to delete final video:`, err);
+            }
+          }
+        }
+      }
     }
 
     // Проверяем универсальные видео (файлы)
