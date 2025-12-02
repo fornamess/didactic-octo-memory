@@ -335,38 +335,31 @@ file '${outroPath.replace(/\\/g, '/')}'`;
           console.log('Concat list content:\n', listContent);
           fs.writeFileSync(listPath, listContent);
 
-          // Используем ultrafast preset для минимизации использования ресурсов
-          // и избежания SIGKILL от системы
-          // Убрали -movflags +faststart, так как он вызывает ошибку при переоткрытии файла
-          // Видео будет работать, просто может немного медленнее начинать воспроизведение
+          // Пробуем сначала конкатенацию без перекодирования (copy codec) - быстрее и надежнее
+          // Если это не сработает из-за разных параметров видео, используем перекодирование
           ffmpeg()
             .input(listPath)
             .inputOptions(['-f', 'concat', '-safe', '0'])
             .outputOptions([
-              '-c:v',
-              'libx264',
-              '-c:a',
-              'aac',
-              '-preset',
-              'ultrafast', // Самый быстрый preset - меньше ресурсов, больше размер файла
-              '-crf',
-              '28', // Чуть хуже качество, но быстрее
-              '-threads',
-              '2', // Ограничиваем потоки для меньшего использования CPU
+              '-c',
+              'copy', // Копируем потоки без перекодирования - быстрее и надежнее
               '-y', // Перезаписывать выходной файл
             ])
             .output(outputPath)
             .on('start', (commandLine) => {
-              console.log('FFmpeg started with command:', commandLine);
+              console.log('FFmpeg started with command (copy mode):', commandLine);
             })
             .on('stderr', (stderrLine) => {
-              // Логируем stderr для отладки
+              // Логируем все важные строки stderr для отладки
               if (
                 stderrLine.includes('error') ||
                 stderrLine.includes('Error') ||
-                stderrLine.includes('killed')
+                stderrLine.includes('killed') ||
+                stderrLine.includes('frame=') ||
+                stderrLine.includes('time=') ||
+                stderrLine.includes('bitrate=')
               ) {
-                console.error('FFmpeg stderr:', stderrLine);
+                console.log('FFmpeg stderr:', stderrLine);
               }
             })
             .on('progress', (progress) => {
@@ -375,15 +368,15 @@ file '${outroPath.replace(/\\/g, '/')}'`;
               }
             })
             .on('end', () => {
-              // Удаляем временный файл
-              if (fs.existsSync(listPath)) {
-                fs.unlinkSync(listPath);
-              }
-
               // Проверяем что выходной файл создан и имеет адекватный размер
               if (fs.existsSync(outputPath)) {
                 const outputSize = fs.statSync(outputPath).size;
-                console.log('Video concatenation completed:', outputPath, 'size:', outputSize);
+                console.log(
+                  'Video concatenation completed (copy mode):',
+                  outputPath,
+                  'size:',
+                  outputSize
+                );
 
                 // Проверяем что файл не слишком маленький (не был прерван)
                 const expectedMinSize = (introSize + personalSize + outroSize) * 0.5;
@@ -391,51 +384,348 @@ file '${outroPath.replace(/\\/g, '/')}'`;
                   console.error(
                     `Warning: Output file size (${outputSize}) is too small, expected at least ${expectedMinSize}`
                   );
-                  // Удаляем некорректный файл
+                  // Удаляем некорректный файл и пробуем перекодирование
                   try {
                     fs.unlinkSync(outputPath);
                   } catch (e) {
                     console.error('Failed to delete incorrect output file:', e);
                   }
-                  resolve(false);
+
+                  // Пробуем перекодирование как fallback
+                  console.log('🔄 Copy mode produced small file, trying re-encoding mode...');
+                  const listPath2 = path.join(
+                    path.dirname(outputPath),
+                    `concat_list_${Date.now()}.txt`
+                  );
+                  const listContent2 = `file '${introPath.replace(/\\/g, '/')}'
+file '${personalPath.replace(/\\/g, '/')}'
+file '${outroPath.replace(/\\/g, '/')}'`;
+                  fs.writeFileSync(listPath2, listContent2);
+
+                  ffmpeg()
+                    .input(listPath2)
+                    .inputOptions(['-f', 'concat', '-safe', '0'])
+                    .outputOptions([
+                      '-c:v',
+                      'libx264',
+                      '-c:a',
+                      'aac',
+                      '-preset',
+                      'ultrafast',
+                      '-crf',
+                      '28',
+                      '-threads',
+                      '2',
+                      '-y',
+                    ])
+                    .output(outputPath)
+                    .on('start', (commandLine) => {
+                      console.log('FFmpeg started with command (re-encode mode):', commandLine);
+                    })
+                    .on('stderr', (stderrLine) => {
+                      if (
+                        stderrLine.includes('error') ||
+                        stderrLine.includes('Error') ||
+                        stderrLine.includes('killed') ||
+                        stderrLine.includes('frame=') ||
+                        stderrLine.includes('time=')
+                      ) {
+                        console.log('FFmpeg stderr (re-encode):', stderrLine);
+                      }
+                    })
+                    .on('progress', (progress) => {
+                      if (progress.percent) {
+                        console.log(`Re-encoding progress: ${Math.round(progress.percent)}%`);
+                      }
+                    })
+                    .on('end', () => {
+                      if (fs.existsSync(listPath2)) {
+                        fs.unlinkSync(listPath2);
+                      }
+                      if (fs.existsSync(listPath)) {
+                        fs.unlinkSync(listPath);
+                      }
+
+                      if (fs.existsSync(outputPath)) {
+                        const outputSize2 = fs.statSync(outputPath).size;
+                        console.log(
+                          'Video concatenation completed (re-encode):',
+                          outputPath,
+                          'size:',
+                          outputSize2
+                        );
+                        const expectedMinSize2 = (introSize + personalSize + outroSize) * 0.5;
+                        if (outputSize2 < expectedMinSize2) {
+                          console.error(
+                            `Warning: Output file size (${outputSize2}) is too small, expected at least ${expectedMinSize2}`
+                          );
+                          try {
+                            fs.unlinkSync(outputPath);
+                          } catch (e) {
+                            console.error('Failed to delete incorrect output file:', e);
+                          }
+                          resolve(false);
+                          return;
+                        }
+                        resolve(true);
+                      } else {
+                        console.error('Output file was not created (re-encode):', outputPath);
+                        resolve(false);
+                      }
+                    })
+                    .on('error', (err2: Error, stdout2, stderr2) => {
+                      console.error('FFmpeg error (re-encode mode):', err2.message);
+                      console.error('FFmpeg stdout:', stdout2);
+                      console.error('FFmpeg stderr:', stderr2);
+                      if (fs.existsSync(listPath2)) {
+                        fs.unlinkSync(listPath2);
+                      }
+                      if (fs.existsSync(listPath)) {
+                        fs.unlinkSync(listPath);
+                      }
+                      if (fs.existsSync(outputPath)) {
+                        try {
+                          fs.unlinkSync(outputPath);
+                        } catch (e) {
+                          console.error('Error deleting output file:', e);
+                        }
+                      }
+                      resolve(false);
+                    })
+                    .run();
                   return;
                 }
 
+                // Удаляем временный файл при успехе
+                if (fs.existsSync(listPath)) {
+                  fs.unlinkSync(listPath);
+                }
                 resolve(true);
               } else {
-                console.error('Output file was not created:', outputPath);
-                resolve(false);
+                console.error('Output file was not created (copy mode):', outputPath);
+                // Пробуем перекодирование
+                console.log('🔄 Copy mode did not create file, trying re-encoding mode...');
+                const listPath2 = path.join(
+                  path.dirname(outputPath),
+                  `concat_list_${Date.now()}.txt`
+                );
+                const listContent2 = `file '${introPath.replace(/\\/g, '/')}'
+file '${personalPath.replace(/\\/g, '/')}'
+file '${outroPath.replace(/\\/g, '/')}'`;
+                fs.writeFileSync(listPath2, listContent2);
+
+                ffmpeg()
+                  .input(listPath2)
+                  .inputOptions(['-f', 'concat', '-safe', '0'])
+                  .outputOptions([
+                    '-c:v',
+                    'libx264',
+                    '-c:a',
+                    'aac',
+                    '-preset',
+                    'ultrafast',
+                    '-crf',
+                    '28',
+                    '-threads',
+                    '2',
+                    '-y',
+                  ])
+                  .output(outputPath)
+                  .on('start', (commandLine) => {
+                    console.log('FFmpeg started with command (re-encode mode):', commandLine);
+                  })
+                  .on('stderr', (stderrLine) => {
+                    if (
+                      stderrLine.includes('error') ||
+                      stderrLine.includes('Error') ||
+                      stderrLine.includes('killed') ||
+                      stderrLine.includes('frame=') ||
+                      stderrLine.includes('time=')
+                    ) {
+                      console.log('FFmpeg stderr (re-encode):', stderrLine);
+                    }
+                  })
+                  .on('progress', (progress) => {
+                    if (progress.percent) {
+                      console.log(`Re-encoding progress: ${Math.round(progress.percent)}%`);
+                    }
+                  })
+                  .on('end', () => {
+                    if (fs.existsSync(listPath2)) {
+                      fs.unlinkSync(listPath2);
+                    }
+                    if (fs.existsSync(listPath)) {
+                      fs.unlinkSync(listPath);
+                    }
+
+                    if (fs.existsSync(outputPath)) {
+                      const outputSize2 = fs.statSync(outputPath).size;
+                      console.log(
+                        'Video concatenation completed (re-encode):',
+                        outputPath,
+                        'size:',
+                        outputSize2
+                      );
+                      const expectedMinSize2 = (introSize + personalSize + outroSize) * 0.5;
+                      if (outputSize2 < expectedMinSize2) {
+                        console.error(
+                          `Warning: Output file size (${outputSize2}) is too small, expected at least ${expectedMinSize2}`
+                        );
+                        try {
+                          fs.unlinkSync(outputPath);
+                        } catch (e) {
+                          console.error('Failed to delete incorrect output file:', e);
+                        }
+                        resolve(false);
+                        return;
+                      }
+                      resolve(true);
+                    } else {
+                      console.error('Output file was not created (re-encode):', outputPath);
+                      resolve(false);
+                    }
+                  })
+                  .on('error', (err2: Error, stdout2, stderr2) => {
+                    console.error('FFmpeg error (re-encode mode):', err2.message);
+                    console.error('FFmpeg stdout:', stdout2);
+                    console.error('FFmpeg stderr:', stderr2);
+                    if (fs.existsSync(listPath2)) {
+                      fs.unlinkSync(listPath2);
+                    }
+                    if (fs.existsSync(listPath)) {
+                      fs.unlinkSync(listPath);
+                    }
+                    if (fs.existsSync(outputPath)) {
+                      try {
+                        fs.unlinkSync(outputPath);
+                      } catch (e) {
+                        console.error('Error deleting output file:', e);
+                      }
+                    }
+                    resolve(false);
+                  })
+                  .run();
               }
             })
             .on('error', (err: Error, stdout, stderr) => {
-              console.error('FFmpeg error:', err.message);
+              console.error('FFmpeg error (copy mode):', err.message);
               if (err.message.includes('killed') || err.message.includes('SIGKILL')) {
                 console.error('⚠️ FFmpeg was killed by system (likely out of memory/timeout)');
               }
               console.error('FFmpeg stdout:', stdout);
               console.error('FFmpeg stderr:', stderr);
-              // Удаляем временный файл при ошибке
-              if (fs.existsSync(listPath)) {
-                fs.unlinkSync(listPath);
-              }
+
               // Удаляем некорректный выходной файл если он существует
               if (fs.existsSync(outputPath)) {
                 try {
-                  const outputSize = fs.statSync(outputPath).size;
-                  // Проверяем размер относительно ожидаемого минимума
-                  const expectedMinSize = (introSize + personalSize + outroSize) * 0.5;
-                  if (outputSize < expectedMinSize) {
-                    // Если файл слишком маленький, вероятно процесс был прерван или произошла ошибка
-                    console.log(
-                      `Removing incomplete output file (size: ${outputSize}, expected min: ${expectedMinSize})`
-                    );
-                    fs.unlinkSync(outputPath);
-                  }
+                  fs.unlinkSync(outputPath);
                 } catch (e) {
-                  console.error('Error checking/deleting output file:', e);
+                  console.error('Error deleting output file:', e);
                 }
               }
-              resolve(false);
+
+              // Пробуем перекодирование как fallback
+              console.log('🔄 Copy mode failed, trying re-encoding mode...');
+              const listPath2 = path.join(
+                path.dirname(outputPath),
+                `concat_list_${Date.now()}.txt`
+              );
+              const listContent2 = `file '${introPath.replace(/\\/g, '/')}'
+file '${personalPath.replace(/\\/g, '/')}'
+file '${outroPath.replace(/\\/g, '/')}'`;
+              fs.writeFileSync(listPath2, listContent2);
+
+              ffmpeg()
+                .input(listPath2)
+                .inputOptions(['-f', 'concat', '-safe', '0'])
+                .outputOptions([
+                  '-c:v',
+                  'libx264',
+                  '-c:a',
+                  'aac',
+                  '-preset',
+                  'ultrafast',
+                  '-crf',
+                  '28',
+                  '-threads',
+                  '2',
+                  '-y',
+                ])
+                .output(outputPath)
+                .on('start', (commandLine) => {
+                  console.log('FFmpeg started with command (re-encode mode):', commandLine);
+                })
+                .on('stderr', (stderrLine) => {
+                  if (
+                    stderrLine.includes('error') ||
+                    stderrLine.includes('Error') ||
+                    stderrLine.includes('killed') ||
+                    stderrLine.includes('frame=') ||
+                    stderrLine.includes('time=')
+                  ) {
+                    console.log('FFmpeg stderr (re-encode):', stderrLine);
+                  }
+                })
+                .on('progress', (progress) => {
+                  if (progress.percent) {
+                    console.log(`Re-encoding progress: ${Math.round(progress.percent)}%`);
+                  }
+                })
+                .on('end', () => {
+                  if (fs.existsSync(listPath2)) {
+                    fs.unlinkSync(listPath2);
+                  }
+                  if (fs.existsSync(listPath)) {
+                    fs.unlinkSync(listPath);
+                  }
+
+                  if (fs.existsSync(outputPath)) {
+                    const outputSize = fs.statSync(outputPath).size;
+                    console.log(
+                      'Video concatenation completed (re-encode):',
+                      outputPath,
+                      'size:',
+                      outputSize
+                    );
+                    const expectedMinSize = (introSize + personalSize + outroSize) * 0.5;
+                    if (outputSize < expectedMinSize) {
+                      console.error(
+                        `Warning: Output file size (${outputSize}) is too small, expected at least ${expectedMinSize}`
+                      );
+                      try {
+                        fs.unlinkSync(outputPath);
+                      } catch (e) {
+                        console.error('Failed to delete incorrect output file:', e);
+                      }
+                      resolve(false);
+                      return;
+                    }
+                    resolve(true);
+                  } else {
+                    console.error('Output file was not created (re-encode):', outputPath);
+                    resolve(false);
+                  }
+                })
+                .on('error', (err2: Error, stdout2, stderr2) => {
+                  console.error('FFmpeg error (re-encode mode):', err2.message);
+                  console.error('FFmpeg stdout:', stdout2);
+                  console.error('FFmpeg stderr:', stderr2);
+                  if (fs.existsSync(listPath2)) {
+                    fs.unlinkSync(listPath2);
+                  }
+                  if (fs.existsSync(listPath)) {
+                    fs.unlinkSync(listPath);
+                  }
+                  if (fs.existsSync(outputPath)) {
+                    try {
+                      fs.unlinkSync(outputPath);
+                    } catch (e) {
+                      console.error('Error deleting output file:', e);
+                    }
+                  }
+                  resolve(false);
+                })
+                .run();
             })
             .run();
 
