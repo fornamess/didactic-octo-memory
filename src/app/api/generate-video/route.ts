@@ -236,7 +236,7 @@ export async function POST(request: NextRequest) {
     generateTasks.push(
       createVideoTask(personalPrompt, customerId, {
         imageUrl: photo1Url || undefined, // Используем первое фото как референс
-        resolution: 1080, // Улучшенное качество
+        resolution: 720, // Используем 720p для совместимости (fallback обработает если нужно)
         dimensions: '16:9',
         duration: 20, // Увеличена длительность для полного текста
         effectId: 0,

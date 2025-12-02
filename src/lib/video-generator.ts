@@ -78,12 +78,14 @@ export async function createVideoTask(
     }
 
     // Параметры по умолчанию
-    const resolution = options?.resolution || 1080; // Улучшенное качество (было 720)
+    // Используем совместимые параметры: 720p + 20 секунд (1080p + 20 сек может быть недоступно)
+    const resolution = options?.resolution || 720; // Используем 720p для совместимости
     const dimensions = options?.dimensions || '16:9';
-    const duration = options?.duration || 20; // Увеличена длительность для полного текста (было 15)
+    const duration = options?.duration || 20; // Увеличена длительность для полного текста
     const effectId = options?.effectId || 0;
 
     // Формируем тело запроса согласно API Sora
+    // Пробуем сначала с версией 2 (если поддерживается)
     const requestBody: {
       prompt: string;
       customer_id: string;
@@ -92,6 +94,7 @@ export async function createVideoTask(
       duration: number;
       effect_id: number;
       image_url?: string;
+      version?: number;
     } = {
       prompt: prompt,
       customer_id: customerId,
@@ -99,6 +102,7 @@ export async function createVideoTask(
       dimensions: dimensions,
       duration: duration,
       effect_id: effectId,
+      version: 2, // Пробуем версию 2 для поддержки лучших параметров
     };
 
     // Если указан image_url, добавляем его (для генерации по референсу)
@@ -108,6 +112,7 @@ export async function createVideoTask(
     }
 
     console.log('Creating video task with customer_id:', customerId);
+    console.log('Request parameters:', { resolution, dimensions, duration, effectId, version: 2 });
 
     const response = await fetch(`${YES_AI_API_BASE}/yesvideo/aniimage/sora`, {
       method: 'POST',
@@ -127,6 +132,73 @@ export async function createVideoTask(
       data = JSON.parse(responseText);
     } catch {
       return { success: false, error: `Ошибка парсинга ответа: ${responseText}` };
+    }
+
+    // Если параметры не разрешены, пробуем с другими параметрами
+    if (!data.success && data.message === 'PARAMETERS_IS_NOT_ALLOWED') {
+      console.log('⚠️ Parameters not allowed, trying fallback parameters...');
+
+      // Пробуем с 720p + 15 секунд (более совместимая комбинация)
+      const fallbackBody: {
+        prompt: string;
+        customer_id: string;
+        resolution: number;
+        dimensions: string;
+        duration: number;
+        effect_id: number;
+        version: number;
+        image_url?: string;
+      } = {
+        prompt: prompt,
+        customer_id: customerId,
+        resolution: 720,
+        dimensions: dimensions,
+        duration: 15, // Уменьшаем до 15 секунд для совместимости
+        effect_id: effectId,
+        version: 2,
+      };
+
+      if (options?.imageUrl) {
+        fallbackBody.image_url = options.imageUrl;
+      }
+
+      console.log('Trying fallback parameters:', fallbackBody);
+
+      const fallbackResponse = await fetch(`${YES_AI_API_BASE}/yesvideo/aniimage/sora`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${YES_AI_TOKEN}`,
+        },
+        body: JSON.stringify(fallbackBody),
+      });
+
+      const fallbackResponseText = await fallbackResponse.text();
+      console.log('Fallback response status:', fallbackResponse.status);
+      console.log('Fallback response:', fallbackResponseText);
+
+      let fallbackData;
+      try {
+        fallbackData = JSON.parse(fallbackResponseText);
+      } catch {
+        return {
+          success: false,
+          error: `Ошибка парсинга ответа fallback: ${fallbackResponseText}`,
+        };
+      }
+
+      if (!fallbackData.success) {
+        console.error('Yes AI API fallback error:', fallbackData.message);
+        return { success: false, error: fallbackData.message };
+      }
+
+      const fallbackTaskId = fallbackData.results?.animation_data?.id;
+      if (!fallbackTaskId) {
+        return { success: false, error: 'Не получен ID задания (fallback)' };
+      }
+
+      console.log('✅ Fallback parameters worked, task ID:', fallbackTaskId);
+      return { success: true, taskId: fallbackTaskId };
     }
 
     if (!data.success) {
@@ -279,7 +351,7 @@ function getAgeWord(age: number): string {
 export async function generateIntroVideo(customerId: string): Promise<GenerationResult> {
   console.log('Generating intro video...');
   return createVideoTask(VIDEO_PROMPTS.intro, customerId, {
-    resolution: 1080, // Улучшенное качество
+    resolution: 720, // Используем 720p для совместимости (fallback обработает если нужно)
     dimensions: '16:9',
     duration: 20, // Увеличена длительность
     effectId: 0,
@@ -290,7 +362,7 @@ export async function generateIntroVideo(customerId: string): Promise<Generation
 export async function generateOutroVideo(customerId: string): Promise<GenerationResult> {
   console.log('Generating outro video...');
   return createVideoTask(VIDEO_PROMPTS.outro, customerId, {
-    resolution: 1080, // Улучшенное качество
+    resolution: 720, // Используем 720p для совместимости (fallback обработает если нужно)
     dimensions: '16:9',
     duration: 20, // Увеличена длительность
     effectId: 0,
