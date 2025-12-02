@@ -78,10 +78,12 @@ export async function createVideoTask(
     }
 
     // Параметры по умолчанию
-    // Используем совместимые параметры: 720p + 20 секунд (1080p + 20 сек может быть недоступно)
+    // Для версии 2 API используем более совместимые параметры: 720p + 15 секунд
+    // Версия 2 обычно поддерживает duration только 10 или 15 секунд
     const resolution = options?.resolution || 720; // Используем 720p для совместимости
     const dimensions = options?.dimensions || '16:9';
-    const duration = options?.duration || 20; // Увеличена длительность для полного текста
+    // Для версии 2 максимальная длительность обычно 15 секунд, но пробуем запрошенную
+    const duration = options?.duration || 15;
     const effectId = options?.effectId || 0;
 
     // Формируем тело запроса согласно API Sora
@@ -138,7 +140,37 @@ export async function createVideoTask(
     if (!data.success && data.message === 'PARAMETERS_IS_NOT_ALLOWED') {
       console.log('⚠️ Parameters not allowed, trying fallback parameters...');
 
-      // Пробуем с 720p + 15 секунд (более совместимая комбинация)
+      // Извлекаем доступные параметры из ответа API
+      const versionParams = data.details?.version_parameters;
+      const availableResolutions = versionParams?.sora_resolutions || [720];
+      const availableDimensions = versionParams?.sora_dimensions || ['16:9'];
+      const availableDurations = versionParams?.sora_durations || [10, 15];
+      const availableEffects = versionParams?.sora_effects || [0];
+
+      console.log('Available parameters from API:', {
+        resolutions: availableResolutions,
+        dimensions: availableDimensions,
+        durations: availableDurations,
+        effects: availableEffects,
+      });
+
+      // Выбираем максимально близкие параметры к желаемым
+      // Приоритет: dimensions -> resolution -> duration -> effect
+      const fallbackResolution = availableResolutions.includes(resolution)
+        ? resolution
+        : availableResolutions[availableResolutions.length - 1]; // Берем максимальное доступное
+      const fallbackDimensions = availableDimensions.includes(dimensions)
+        ? dimensions
+        : availableDimensions[0];
+      // Выбираем максимальную доступную длительность, но не больше желаемой
+      const fallbackDuration =
+        availableDurations
+          .filter((d: number) => d <= duration)
+          .sort((a: number, b: number) => b - a)[0] ||
+        availableDurations[availableDurations.length - 1];
+      const fallbackEffectId = availableEffects.includes(effectId) ? effectId : availableEffects[0];
+
+      // Пробуем с выбранными параметрами
       const fallbackBody: {
         prompt: string;
         customer_id: string;
@@ -151,10 +183,10 @@ export async function createVideoTask(
       } = {
         prompt: prompt,
         customer_id: customerId,
-        resolution: 720,
-        dimensions: dimensions,
-        duration: 15, // Уменьшаем до 15 секунд для совместимости
-        effect_id: effectId,
+        resolution: fallbackResolution,
+        dimensions: fallbackDimensions,
+        duration: fallbackDuration,
+        effect_id: fallbackEffectId,
         version: 2,
       };
 
@@ -187,9 +219,13 @@ export async function createVideoTask(
         };
       }
 
-      // Если изображение недоступно, пробуем без него
-      if (!fallbackData.success && fallbackData.message === 'IMAGE_NOT_FOUND') {
-        console.log('⚠️ Image not found, trying without image reference...');
+      // Если изображение недоступно или размер не валиден, пробуем без него
+      if (
+        !fallbackData.success &&
+        (fallbackData.message === 'IMAGE_NOT_FOUND' ||
+          fallbackData.message === 'IMAGE_FILE_SIZE_NOT_VALID')
+      ) {
+        console.log(`⚠️ Image error (${fallbackData.message}), trying without image reference...`);
 
         const fallbackWithoutImage: {
           prompt: string;
@@ -202,10 +238,10 @@ export async function createVideoTask(
         } = {
           prompt: prompt,
           customer_id: customerId,
-          resolution: 720,
-          dimensions: dimensions,
-          duration: 15,
-          effect_id: effectId,
+          resolution: fallbackResolution,
+          dimensions: fallbackDimensions,
+          duration: fallbackDuration,
+          effect_id: fallbackEffectId,
           version: 2,
         };
 
@@ -268,9 +304,14 @@ export async function createVideoTask(
       return { success: true, taskId: fallbackTaskId };
     }
 
-    // Если изображение недоступно в основном запросе, пробуем без него
-    if (!data.success && data.message === 'IMAGE_NOT_FOUND') {
-      console.log('⚠️ Image not found in main request, trying without image reference...');
+    // Если изображение недоступно или размер не валиден в основном запросе, пробуем без него
+    if (
+      !data.success &&
+      (data.message === 'IMAGE_NOT_FOUND' || data.message === 'IMAGE_FILE_SIZE_NOT_VALID')
+    ) {
+      console.log(
+        `⚠️ Image error (${data.message}) in main request, trying without image reference...`
+      );
 
       const requestBodyWithoutImage: {
         prompt: string;
@@ -455,7 +496,7 @@ export function generatePersonalPrompt(
   childAge?: number
 ): string {
   const ageText = childAge ? `, которому ${childAge} ${getAgeWord(childAge)}` : '';
-  return `Дед Мороз в красной шубе сидит в уютной комнате с ёлкой. Он смотрит в камеру и произносит слова, обращаясь к ребёнку по имени ${childName}${ageText}. В кадре появляется мягкое сияние, показывающее воспоминание о ребёнке - "${photo1Comment}". Затем плавный снежный переход к другому моменту - "${photo2Comment}". Дед Мороз улыбается с теплотой и гордостью. Атмосфера волшебная, персональная, тёплая. Качество видео высокое, кинематографичное. Дед Мороз говорит медленно и четко, делая паузы между фразами, чтобы все слова были понятны. ВАЖНО: Длительность видео должна быть ровно 20 секунд. Распределите речь и действия равномерно на все 20 секунд, не обрывайте видео раньше времени. Убедитесь, что Дед Мороз успевает полностью произнести все слова до конца видео.`;
+  return `Дед Мороз в красной шубе сидит в уютной комнате с ёлкой. Он смотрит в камеру и произносит слова, обращаясь к ребёнку по имени ${childName}${ageText}. В кадре появляется мягкое сияние, показывающее воспоминание о ребёнке - "${photo1Comment}". Затем плавный снежный переход к другому моменту - "${photo2Comment}". Дед Мороз улыбается с теплотой и гордостью. Атмосфера волшебная, персональная, тёплая. Качество видео высокое, кинематографичное. Дед Мороз говорит медленно и четко, делая паузы между фразами, чтобы все слова были понятны. ВАЖНО: Распределите речь и действия равномерно на всю длительность видео, не обрывайте видео раньше времени. Убедитесь, что Дед Мороз успевает полностью произнести все слова до конца видео.`;
 }
 
 // Вспомогательная функция для правильного склонения слова "год"
@@ -479,9 +520,9 @@ function getAgeWord(age: number): string {
 export async function generateIntroVideo(customerId: string): Promise<GenerationResult> {
   console.log('Generating intro video...');
   return createVideoTask(VIDEO_PROMPTS.intro, customerId, {
-    resolution: 720, // Используем 720p для совместимости (fallback обработает если нужно)
+    resolution: 720, // Используем 720p для совместимости
     dimensions: '16:9',
-    duration: 20, // Увеличена длительность
+    duration: 15, // Используем 15 секунд для совместимости с версией 2 API
     effectId: 0,
   });
 }
@@ -490,9 +531,9 @@ export async function generateIntroVideo(customerId: string): Promise<Generation
 export async function generateOutroVideo(customerId: string): Promise<GenerationResult> {
   console.log('Generating outro video...');
   return createVideoTask(VIDEO_PROMPTS.outro, customerId, {
-    resolution: 720, // Используем 720p для совместимости (fallback обработает если нужно)
+    resolution: 720, // Используем 720p для совместимости
     dimensions: '16:9',
-    duration: 20, // Увеличена длительность
+    duration: 15, // Используем 15 секунд для совместимости с версией 2 API
     effectId: 0,
   });
 }
