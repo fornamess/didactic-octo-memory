@@ -1,22 +1,84 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import Link from "next/link";
+import Snowfall from '@/components/Snowfall';
+import { motion } from 'framer-motion';
 import {
-  Sparkles,
-  TreePine,
-  Gift,
-  Star,
-  User,
-  LogIn,
-  Heart,
-  Play,
   ArrowRight,
   Coins,
+  Gift,
+  Heart,
+  LogIn,
   Shield,
-} from "lucide-react";
-import Snowfall from "@/components/Snowfall";
+  Sparkles,
+  Star,
+  TreePine,
+  User,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRef, useState } from 'react';
+
+// Компонент для отображения примера видео
+function ExampleVideoPlayer() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [showPlaceholder, setShowPlaceholder] = useState(true);
+
+  const handleVideoLoaded = () => {
+    setShowPlaceholder(false);
+  };
+
+  const handleVideoError = () => {
+    setShowPlaceholder(true);
+  };
+
+  return (
+    <div className="relative aspect-video rounded-2xl overflow-hidden bg-black group">
+      {/* Видео с несколькими источниками */}
+      <video
+        ref={videoRef}
+        className="w-full h-full object-cover"
+        autoPlay
+        loop
+        muted
+        playsInline
+        onLoadedData={handleVideoLoaded}
+        onError={handleVideoError}
+        style={{ display: showPlaceholder ? 'none' : 'block' }}
+      >
+        <source src="/api/videos/stream/final/final_2.mp4" type="video/mp4" />
+        <source src="/videos/final/final_2.mp4" type="video/mp4" />
+        <source src="/api/videos/stream/final/final_1.mp4" type="video/mp4" />
+        <source src="/videos/final/final_1.mp4" type="video/mp4" />
+        <source src="/api/videos/stream/personal/personal_4.mp4" type="video/mp4" />
+        <source src="/videos/personal/personal_4.mp4" type="video/mp4" />
+        <source src="/api/videos/stream/intro/intro.mp4" type="video/mp4" />
+        <source src="/videos/intro.mp4" type="video/mp4" />
+      </video>
+
+      {/* Заглушка если видео не загрузилось */}
+      {showPlaceholder && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#1a3a5c] to-[#0c1929]">
+          <div className="text-center">
+            <span className="text-6xl mb-4 block">🎬</span>
+            <p className="text-[#a8d8ea]">Пример готового видео</p>
+            <p className="text-[#a8d8ea]/60 text-sm mt-2">
+              Персонализированное видео от Деда Мороза
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Градиент поверх видео */}
+      {!showPlaceholder && (
+        <>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
+            <p className="text-white text-sm font-semibold drop-shadow-lg">Пример готового видео</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function Home() {
   const [user, setUser] = useState<{
@@ -24,24 +86,20 @@ export default function Home() {
     email: string;
     nickname?: string;
     balance?: number;
-  } | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const token = localStorage.getItem("token");
-    const userData = localStorage.getItem("user");
-
-    if (token && userData) {
-      setUser(JSON.parse(userData));
+  } | null>(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('user');
+      if (token && userData) {
+        try {
+          return JSON.parse(userData);
+        } catch {
+          return null;
+        }
+      }
     }
-  }, []);
-
-  if (!mounted) {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-[#0c1929] via-[#1a3a5c] to-[#0d2840]" />
-    );
-  }
+    return null;
+  });
 
   return (
     <main className="min-h-screen relative overflow-hidden">
@@ -71,11 +129,9 @@ export default function Home() {
               className="glass px-4 py-2 rounded-xl text-[#f0f8ff] hover:bg-white/10 transition-colors flex items-center gap-2"
             >
               <Coins className="w-5 h-5 text-[#ffd700]" />
-              <span className="font-bold text-[#ffd700]">
-                {user.balance || 0}
-              </span>
+              <span className="font-bold text-[#ffd700]">{user.balance || 0}</span>
               <User className="w-5 h-5 ml-2" />
-              {user.nickname || "Профиль"}
+              {user.nickname || 'Профиль'}
             </Link>
           ) : (
             <Link
@@ -91,7 +147,7 @@ export default function Home() {
         <motion.div
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.8, type: "spring" }}
+          transition={{ duration: 0.8, type: 'spring' }}
           className="text-center"
         >
           <motion.div
@@ -134,19 +190,7 @@ export default function Home() {
           <div className="card-festive rounded-3xl p-6 md:p-8 shadow-2xl mb-8">
             <div className="grid md:grid-cols-2 gap-8 items-center">
               {/* Превью видео */}
-              <div className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-[#1a3a5c] to-[#0c1929]">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <span className="text-6xl mb-4 block">🎬</span>
-                    <p className="text-[#a8d8ea]">Пример видео</p>
-                  </div>
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-[#c41e3a]/80 flex items-center justify-center cursor-pointer hover:bg-[#c41e3a] transition-colors">
-                    <Play className="w-8 h-8 text-white ml-1" />
-                  </div>
-                </div>
-              </div>
+              <ExampleVideoPlayer />
 
               {/* Информация */}
               <div>
@@ -155,15 +199,17 @@ export default function Home() {
                 </h3>
 
                 <p className="text-[#a8d8ea] mb-4">
-                  Вы получите видео длиной <strong>2 минуты</strong>, в котором
-                  Дед Мороз обратится к вашему ребёнку по имени, покажет
-                  загруженные вами фотографии и поздравит с Новым Годом!
+                  Вы получите видео длиной <strong>2 минуты</strong>, в котором Дед Мороз обратится
+                  к вашему ребёнку по имени, покажет загруженные вами фотографии и поздравит с Новым
+                  Годом!
                 </p>
 
                 <div className="flex items-center gap-3 mb-6">
                   <Gift className="w-8 h-8 text-[#0d4f2b]" />
                   <span className="text-3xl font-bold text-[#0d4f2b]">БЕСПЛАТНО</span>
-                  <span className="text-sm bg-[#c41e3a] text-white px-2 py-1 rounded-lg">Акция!</span>
+                  <span className="text-sm bg-[#c41e3a] text-white px-2 py-1 rounded-lg">
+                    Акция!
+                  </span>
                 </div>
 
                 <Link
@@ -186,9 +232,7 @@ export default function Home() {
               className="glass-dark p-6 rounded-2xl text-center"
             >
               <Sparkles className="w-12 h-12 text-[#ffd700] mx-auto mb-4" />
-              <h4 className="text-lg font-bold text-white mb-2">
-                Реалистичное AI видео
-              </h4>
+              <h4 className="text-lg font-bold text-white mb-2">Реалистичное AI видео</h4>
               <p className="text-[#a8d8ea]/80 text-sm">
                 Создано с помощью передовой технологии Sora 2
               </p>
@@ -201,12 +245,8 @@ export default function Home() {
               className="glass-dark p-6 rounded-2xl text-center"
             >
               <Heart className="w-12 h-12 text-[#c41e3a] mx-auto mb-4" />
-              <h4 className="text-lg font-bold text-white mb-2">
-                Полная персонализация
-              </h4>
-              <p className="text-[#a8d8ea]/80 text-sm">
-                Имя ребёнка и ваши фотографии в видео
-              </p>
+              <h4 className="text-lg font-bold text-white mb-2">Полная персонализация</h4>
+              <p className="text-[#a8d8ea]/80 text-sm">Имя ребёнка и ваши фотографии в видео</p>
             </motion.div>
 
             <motion.div
@@ -216,12 +256,8 @@ export default function Home() {
               className="glass-dark p-6 rounded-2xl text-center"
             >
               <Gift className="w-12 h-12 text-[#0d4f2b] mx-auto mb-4" />
-              <h4 className="text-lg font-bold text-white mb-2">
-                Идеальный подарок
-              </h4>
-              <p className="text-[#a8d8ea]/80 text-sm">
-                Скачайте и покажите ребёнку под ёлкой
-              </p>
+              <h4 className="text-lg font-bold text-white mb-2">Идеальный подарок</h4>
+              <p className="text-[#a8d8ea]/80 text-sm">Скачайте и покажите ребёнку под ёлкой</p>
             </motion.div>
           </div>
 
@@ -241,36 +277,24 @@ export default function Home() {
                 <div className="w-12 h-12 rounded-full bg-[#ffd700]/20 flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl font-bold text-[#ffd700]">1</span>
                 </div>
-                <h4 className="font-semibold text-white mb-1">
-                  Зарегистрируйтесь
-                </h4>
-                <p className="text-[#a8d8ea]/60 text-sm">
-                  Создайте аккаунт за минуту
-                </p>
+                <h4 className="font-semibold text-white mb-1">Зарегистрируйтесь</h4>
+                <p className="text-[#a8d8ea]/60 text-sm">Создайте аккаунт за минуту</p>
               </div>
 
               <div className="text-center">
                 <div className="w-12 h-12 rounded-full bg-[#ffd700]/20 flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl font-bold text-[#ffd700]">2</span>
                 </div>
-                <h4 className="font-semibold text-white mb-1">
-                  Выберите услугу
-                </h4>
-                <p className="text-[#a8d8ea]/60 text-sm">
-                  Сейчас видео бесплатно!
-                </p>
+                <h4 className="font-semibold text-white mb-1">Выберите услугу</h4>
+                <p className="text-[#a8d8ea]/60 text-sm">Сейчас видео бесплатно!</p>
               </div>
 
               <div className="text-center">
                 <div className="w-12 h-12 rounded-full bg-[#ffd700]/20 flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl font-bold text-[#ffd700]">3</span>
                 </div>
-                <h4 className="font-semibold text-white mb-1">
-                  Заполните форму
-                </h4>
-                <p className="text-[#a8d8ea]/60 text-sm">
-                  Имя ребёнка и 2 фотографии
-                </p>
+                <h4 className="font-semibold text-white mb-1">Заполните форму</h4>
+                <p className="text-[#a8d8ea]/60 text-sm">Имя ребёнка и 2 фотографии</p>
               </div>
 
               <div className="text-center">
@@ -278,19 +302,17 @@ export default function Home() {
                   <span className="text-2xl font-bold text-[#ffd700]">4</span>
                 </div>
                 <h4 className="font-semibold text-white mb-1">Получите видео</h4>
-                <p className="text-[#a8d8ea]/60 text-sm">
-                  Скачайте из личного кабинета
-                </p>
+                <p className="text-[#a8d8ea]/60 text-sm">Скачайте из личного кабинета</p>
               </div>
             </div>
 
             <div className="text-center mt-8">
               <Link
-                href={user ? "/service/ded-moroz" : "/login"}
+                href={user ? '/service/ded-moroz' : '/login'}
                 className="btn-magic px-10 py-4 rounded-xl text-lg font-bold text-white inline-flex items-center gap-3"
               >
                 <Sparkles className="w-6 h-6" />
-                {user ? "Заказать видео" : "Начать сейчас"}
+                {user ? 'Заказать видео' : 'Начать сейчас'}
               </Link>
             </div>
           </motion.div>
@@ -309,13 +331,10 @@ export default function Home() {
       <footer className="relative z-10 py-8 mt-8 border-t border-white/10">
         <div className="container mx-auto px-4 text-center text-[#a8d8ea]/60 text-sm">
           <p className="mb-2">
-            Видео создаётся с помощью технологии искусственного интеллекта Sora
-            2
+            Видео создаётся с помощью технологии искусственного интеллекта Sora 2
           </p>
-          <p>
-            Сделано с ❤️ для волшебных новогодних праздников © 2024-2025
-          </p>
-          {user?.email?.endsWith("@admin.com") && (
+          <p>Сделано с ❤️ для волшебных новогодних праздников © 2024-2025</p>
+          {user?.email?.endsWith('@admin.com') && (
             <Link
               href="/admin"
               className="inline-flex items-center gap-2 text-[#ffd700]/60 hover:text-[#ffd700] mt-4"

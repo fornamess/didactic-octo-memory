@@ -275,17 +275,23 @@ export default function DedMorozServicePage() {
           >
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               <Play className="w-5 h-5 text-[#c41e3a]" />
-              Пример видео
+              Пример готового видео
             </h2>
 
             <div className="relative aspect-video rounded-2xl overflow-hidden bg-black/50">
               <video
                 ref={videoRef}
-                src="/videos/personal/personal_4.mp4"
                 className="w-full h-full object-cover"
                 onEnded={() => setIsPlaying(false)}
-                poster="/videos/personal/personal_4.mp4#t=0.1"
-              />
+                playsInline
+              >
+                <source src="/api/videos/stream/final/final_2.mp4" type="video/mp4" />
+                <source src="/videos/final/final_2.mp4" type="video/mp4" />
+                <source src="/api/videos/stream/final/final_1.mp4" type="video/mp4" />
+                <source src="/videos/final/final_1.mp4" type="video/mp4" />
+                <source src="/api/videos/stream/personal/personal_4.mp4" type="video/mp4" />
+                <source src="/videos/personal/personal_4.mp4" type="video/mp4" />
+              </video>
               <button
                 onClick={toggleVideo}
                 className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors"
