@@ -187,6 +187,73 @@ export async function createVideoTask(
         };
       }
 
+      // Если изображение недоступно, пробуем без него
+      if (!fallbackData.success && fallbackData.message === 'IMAGE_NOT_FOUND') {
+        console.log('⚠️ Image not found, trying without image reference...');
+
+        const fallbackWithoutImage: {
+          prompt: string;
+          customer_id: string;
+          resolution: number;
+          dimensions: string;
+          duration: number;
+          effect_id: number;
+          version: number;
+        } = {
+          prompt: prompt,
+          customer_id: customerId,
+          resolution: 720,
+          dimensions: dimensions,
+          duration: 15,
+          effect_id: effectId,
+          version: 2,
+        };
+
+        console.log('Trying fallback without image:', fallbackWithoutImage);
+
+        const fallbackWithoutImageResponse = await fetch(
+          `${YES_AI_API_BASE}/yesvideo/aniimage/sora`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${YES_AI_TOKEN}`,
+            },
+            body: JSON.stringify(fallbackWithoutImage),
+          }
+        );
+
+        const fallbackWithoutImageText = await fallbackWithoutImageResponse.text();
+        console.log('Fallback without image response status:', fallbackWithoutImageResponse.status);
+        console.log('Fallback without image response:', fallbackWithoutImageText);
+
+        let fallbackWithoutImageData;
+        try {
+          fallbackWithoutImageData = JSON.parse(fallbackWithoutImageText);
+        } catch {
+          return {
+            success: false,
+            error: `Ошибка парсинга ответа fallback без изображения: ${fallbackWithoutImageText}`,
+          };
+        }
+
+        if (!fallbackWithoutImageData.success) {
+          console.error(
+            'Yes AI API fallback without image error:',
+            fallbackWithoutImageData.message
+          );
+          return { success: false, error: fallbackWithoutImageData.message };
+        }
+
+        const fallbackWithoutImageTaskId = fallbackWithoutImageData.results?.animation_data?.id;
+        if (!fallbackWithoutImageTaskId) {
+          return { success: false, error: 'Не получен ID задания (fallback без изображения)' };
+        }
+
+        console.log('✅ Fallback without image worked, task ID:', fallbackWithoutImageTaskId);
+        return { success: true, taskId: fallbackWithoutImageTaskId };
+      }
+
       if (!fallbackData.success) {
         console.error('Yes AI API fallback error:', fallbackData.message);
         return { success: false, error: fallbackData.message };
@@ -199,6 +266,67 @@ export async function createVideoTask(
 
       console.log('✅ Fallback parameters worked, task ID:', fallbackTaskId);
       return { success: true, taskId: fallbackTaskId };
+    }
+
+    // Если изображение недоступно в основном запросе, пробуем без него
+    if (!data.success && data.message === 'IMAGE_NOT_FOUND') {
+      console.log('⚠️ Image not found in main request, trying without image reference...');
+
+      const requestBodyWithoutImage: {
+        prompt: string;
+        customer_id: string;
+        resolution: number;
+        dimensions: string;
+        duration: number;
+        effect_id: number;
+        version: number;
+      } = {
+        prompt: prompt,
+        customer_id: customerId,
+        resolution: resolution,
+        dimensions: dimensions,
+        duration: duration,
+        effect_id: effectId,
+        version: 2,
+      };
+
+      console.log('Trying without image:', requestBodyWithoutImage);
+
+      const responseWithoutImage = await fetch(`${YES_AI_API_BASE}/yesvideo/aniimage/sora`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${YES_AI_TOKEN}`,
+        },
+        body: JSON.stringify(requestBodyWithoutImage),
+      });
+
+      const responseWithoutImageText = await responseWithoutImage.text();
+      console.log('Response without image status:', responseWithoutImage.status);
+      console.log('Response without image:', responseWithoutImageText);
+
+      let dataWithoutImage;
+      try {
+        dataWithoutImage = JSON.parse(responseWithoutImageText);
+      } catch {
+        return {
+          success: false,
+          error: `Ошибка парсинга ответа без изображения: ${responseWithoutImageText}`,
+        };
+      }
+
+      if (!dataWithoutImage.success) {
+        console.error('Yes AI API error without image:', dataWithoutImage.message);
+        return { success: false, error: dataWithoutImage.message };
+      }
+
+      const taskIdWithoutImage = dataWithoutImage.results?.animation_data?.id;
+      if (!taskIdWithoutImage) {
+        return { success: false, error: 'Не получен ID задания (без изображения)' };
+      }
+
+      console.log('✅ Request without image worked, task ID:', taskIdWithoutImage);
+      return { success: true, taskId: taskIdWithoutImage };
     }
 
     if (!data.success) {
