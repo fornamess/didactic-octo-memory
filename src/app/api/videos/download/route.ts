@@ -85,7 +85,13 @@ export async function GET(request: NextRequest) {
       const rfc5987FileName = `filename*=UTF-8''${encodedFileName}`;
       const asciiFileName = `pozdravlenie-${safeFileName}.mp4`.replace(/[^\x00-\x7F]/g, '');
 
-      return new NextResponse(videoBuffer, {
+      // Преобразуем Buffer в ArrayBuffer для NextResponse
+      const arrayBuffer = videoBuffer.buffer.slice(
+        videoBuffer.byteOffset,
+        videoBuffer.byteOffset + videoBuffer.byteLength
+      );
+
+      return new NextResponse(arrayBuffer, {
         headers: {
           'Content-Type': 'video/mp4',
           'Content-Disposition': `attachment; filename="${asciiFileName}"; ${rfc5987FileName}`,
