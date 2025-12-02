@@ -86,6 +86,7 @@ export async function createVideoTask(
     // Формируем тело запроса согласно API Sora
     const requestBody: {
       prompt: string;
+      customer_id: string;
       resolution: number;
       dimensions: string;
       duration: number;
@@ -93,6 +94,7 @@ export async function createVideoTask(
       image_url?: string;
     } = {
       prompt: prompt,
+      customer_id: customerId,
       resolution: resolution,
       dimensions: dimensions,
       duration: duration,
@@ -104,6 +106,8 @@ export async function createVideoTask(
       requestBody.image_url = options.imageUrl;
       console.log('Using image reference for video generation:', options.imageUrl);
     }
+
+    console.log('Creating video task with customer_id:', customerId);
 
     const response = await fetch(`${YES_AI_API_BASE}/yesvideo/aniimage/sora`, {
       method: 'POST',
