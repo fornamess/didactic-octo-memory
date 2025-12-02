@@ -11,6 +11,8 @@ import {
 import {
   checkTaskStatus,
   concatenateVideos,
+  deleteOrderPhotos,
+  deletePersonalVideo,
   downloadVideo,
   generateIntroVideo,
   generateOutroVideo,
@@ -459,68 +461,106 @@ export async function GET(request: NextRequest) {
           console.log(`   Outro: ${universalPaths.outro}`);
           console.log(`   Output: ${finalPath}`);
 
-          const concatenated = await concatenateVideos(
+          await concatenateVideos(
             universalPaths.intro,
             personalPath,
             universalPaths.outro,
             finalPath
           );
 
-          if (concatenated) {
-            // Проверяем что файл создан и имеет правильный размер
-            if (fs.existsSync(finalPath)) {
-              const finalSize = fs.statSync(finalPath).size;
-              console.log(`✅ Videos concatenated successfully!`);
-              console.log(
-                `   Final video size: ${finalSize} bytes (${(finalSize / 1024 / 1024).toFixed(
-                  2
-                )} MB)`
+          // Проверяем файл независимо от возвращаемого значения concatenateVideos
+          // (функция может вернуть false из-за ошибки валидации, но файл может быть создан)
+          if (fs.existsSync(finalPath)) {
+            const finalSize = fs.statSync(finalPath).size;
+            console.log(`📹 Final video file exists: ${finalPath}`);
+            console.log(
+              `   Final video size: ${finalSize} bytes (${(finalSize / 1024 / 1024).toFixed(2)} MB)`
+            );
+            console.log(
+              `   Expected minimum: ${expectedMinSize} bytes (${(
+                expectedMinSize /
+                1024 /
+                1024
+              ).toFixed(2)} MB)`
+            );
+
+            if (finalSize < expectedMinSize) {
+              console.error(
+                `⚠️ WARNING: Final video size (${finalSize} bytes = ${(
+                  finalSize /
+                  1024 /
+                  1024
+                ).toFixed(2)} MB) is too small!`
               );
-              console.log(
-                `   Expected minimum: ${expectedMinSize} bytes (${(
+              console.error(
+                `   Expected at least: ${expectedMinSize} bytes (${(
                   expectedMinSize /
                   1024 /
                   1024
                 ).toFixed(2)} MB)`
               );
+              console.error(`   Concatenation may have failed or video is incomplete.`);
 
-              if (finalSize < expectedMinSize) {
-                console.error(
-                  `⚠️ WARNING: Final video size (${finalSize} bytes = ${(
-                    finalSize /
-                    1024 /
-                    1024
-                  ).toFixed(2)} MB) is too small!`
-                );
-                console.error(
-                  `   Expected at least: ${expectedMinSize} bytes (${(
-                    expectedMinSize /
-                    1024 /
-                    1024
-                  ).toFixed(2)} MB)`
-                );
-                console.error(`   Concatenation may have failed or video is incomplete.`);
-              } else {
-                console.log(`   ✅ Final video size validation passed!`);
+              // Удаляем некорректный файл и пробуем использовать персональное видео
+              try {
+                fs.unlinkSync(finalPath);
+                console.log('🗑️ Deleted incomplete final video');
+              } catch (e) {
+                console.error('Error deleting incomplete file:', e);
               }
+
+              // Используем персональное видео как fallback
+              console.log('📹 Using personal video as fallback');
+              const localPersonalUrl = `/api/videos/stream/personal/personal_${order.id}.mp4`;
+              await updateOrderStatus(
+                Number(taskId),
+                'completed',
+                'Видео готово (без склейки)',
+                localPersonalUrl
+              );
+
+              // Удаляем фотографии после успешной генерации (персональное видео оставляем, так как оно используется)
+              console.log(`🧹 Cleaning up photos for order ${order.id}...`);
+              deleteOrderPhotos(order.id);
+
+              return NextResponse.json({
+                success: true,
+                taskId: Number(taskId),
+                status: 2,
+                statusDescription: 'completed',
+                videoUrl: localPersonalUrl,
+                isCompleted: true,
+                isFailed: false,
+                message: 'Видео готово!',
+              });
+            } else {
+              // Файл существует и имеет правильный размер - используем его
+              console.log(`   ✅ Final video size validation passed!`);
+              console.log(`✅ Videos concatenated successfully!`);
+
+              const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
+              await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
+
+              // Удаляем фотографии и персональное видео после успешной генерации финального видео
+              console.log(`🧹 Cleaning up temporary files for order ${order.id}...`);
+              deleteOrderPhotos(order.id);
+              deletePersonalVideo(order.id);
+
+              return NextResponse.json({
+                success: true,
+                taskId: Number(taskId),
+                status: 2,
+                statusDescription: 'completed',
+                videoUrl: finalVideoUrl,
+                isCompleted: true,
+                isFailed: false,
+                message: 'Видео готово!',
+              });
             }
-
-            const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
-            await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
-
-            return NextResponse.json({
-              success: true,
-              taskId: Number(taskId),
-              status: 2,
-              statusDescription: 'completed',
-              videoUrl: finalVideoUrl,
-              isCompleted: true,
-              isFailed: false,
-              message: 'Видео готово!',
-            });
           } else {
-            // Если склейка не удалась, возвращаем просто персональное видео
-            console.log('Concatenation failed, using personal video only');
+            // Файл не создан - используем персональное видео
+            console.log('❌ Final video file was not created after concatenation');
+            console.log('📹 Using personal video as fallback');
             const localPersonalUrl = `/api/videos/stream/personal/personal_${order.id}.mp4`;
             await updateOrderStatus(
               Number(taskId),
@@ -528,6 +568,10 @@ export async function GET(request: NextRequest) {
               'Видео готово (без склейки)',
               localPersonalUrl
             );
+
+            // Удаляем фотографии после успешной генерации (персональное видео оставляем, так как оно используется)
+            console.log(`🧹 Cleaning up photos for order ${order.id}...`);
+            deleteOrderPhotos(order.id);
 
             return NextResponse.json({
               success: true,
@@ -552,6 +596,11 @@ export async function GET(request: NextRequest) {
             );
             await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
           }
+
+          // Удаляем фотографии и персональное видео, если финальное видео уже готово
+          console.log(`🧹 Cleaning up temporary files for order ${order.id}...`);
+          deleteOrderPhotos(order.id);
+          deletePersonalVideo(order.id);
 
           return NextResponse.json({
             success: true,

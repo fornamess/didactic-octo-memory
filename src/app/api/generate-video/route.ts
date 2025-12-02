@@ -17,8 +17,8 @@ import {
   generatePersonalPrompt,
 } from '@/lib/video-generator';
 import fs from 'fs';
-import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
+import path from 'path';
 
 interface RequestBody {
   childName: string;
@@ -53,7 +53,9 @@ async function saveBase64Image(
     }
 
     // Сохраняем изображение
-    const fileName = `photo${photoNumber}_order${orderId}.${imageType === 'jpeg' ? 'jpg' : imageType}`;
+    const fileName = `photo${photoNumber}_order${orderId}.${
+      imageType === 'jpeg' ? 'jpg' : imageType
+    }`;
     const filePath = path.join(imagesDir, fileName);
     fs.writeFileSync(filePath, imageBuffer);
 

@@ -763,19 +763,43 @@ export async function concatenateVideos(
                   );
 
                   // Проверяем что файл не слишком маленький (не был прерван)
-                  const expectedMinSize = (introSize + personalSize + outroSize) * 0.5;
+                  // Используем коэффициент 0.7 (как в check-status) для учета перекодирования
+                  const expectedMinSize = (introSize + personalSize + outroSize) * 0.7;
+                  console.log(
+                    `Validating output file size: ${outputSize} bytes, expected minimum: ${expectedMinSize} bytes`
+                  );
+
                   if (outputSize < expectedMinSize) {
                     console.error(
-                      `⚠️ Warning: Output file size (${outputSize}) is too small, expected at least ${expectedMinSize}`
+                      `⚠️ Warning: Output file size (${outputSize} bytes = ${(
+                        outputSize /
+                        1024 /
+                        1024
+                      ).toFixed(
+                        2
+                      )} MB) is too small, expected at least ${expectedMinSize} bytes (${(
+                        expectedMinSize /
+                        1024 /
+                        1024
+                      ).toFixed(2)} MB)`
+                    );
+                    console.error(
+                      `   This is ${((outputSize / expectedMinSize) * 100).toFixed(
+                        1
+                      )}% of expected minimum size`
                     );
                     try {
                       fs.unlinkSync(outputPath);
+                      console.log('🗑️ Deleted incomplete output file');
                     } catch (e) {
                       console.error('Failed to delete incorrect output file:', e);
                     }
                     resolve(false);
                     return;
                   }
+                  console.log(
+                    `✅ Output file size validation passed: ${outputSize} >= ${expectedMinSize}`
+                  );
                   resolve(true);
                 } else {
                   console.error('❌ Output file was not created:', outputPath);
@@ -872,4 +896,60 @@ export function getFinalVideoPath(orderId: number): string {
     fs.mkdirSync(finalDir, { recursive: true });
   }
   return path.join(finalDir, `final_${orderId}.mp4`);
+}
+
+// Удаление фотографий заказа после успешной генерации
+export function deleteOrderPhotos(orderId: number): void {
+  try {
+    const imagesDir = path.join(VIDEO_STORAGE_PATH, 'images');
+    if (!fs.existsSync(imagesDir)) {
+      return;
+    }
+
+    // Ищем и удаляем фотографии для этого заказа
+    const photoPatterns = [
+      `photo1_order${orderId}.jpg`,
+      `photo1_order${orderId}.png`,
+      `photo2_order${orderId}.jpg`,
+      `photo2_order${orderId}.png`,
+    ];
+
+    let deletedCount = 0;
+    for (const fileName of photoPatterns) {
+      const filePath = path.join(imagesDir, fileName);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+          console.log(`🗑️ Deleted photo: ${fileName}`);
+          deletedCount++;
+        } catch (error) {
+          console.error(`Error deleting photo ${fileName}:`, error);
+        }
+      }
+    }
+
+    if (deletedCount > 0) {
+      console.log(`✅ Deleted ${deletedCount} photo(s) for order ${orderId}`);
+    } else {
+      console.log(`ℹ️ No photos found to delete for order ${orderId}`);
+    }
+  } catch (error) {
+    console.error(`Error deleting photos for order ${orderId}:`, error);
+  }
+}
+
+// Удаление персонального видео после успешной генерации финального видео
+export function deletePersonalVideo(orderId: number): void {
+  try {
+    const personalPath = getPersonalVideoPath(orderId);
+    if (fs.existsSync(personalPath)) {
+      fs.unlinkSync(personalPath);
+      console.log(`🗑️ Deleted personal video: ${personalPath}`);
+      console.log(`✅ Personal video deleted for order ${orderId}`);
+    } else {
+      console.log(`ℹ️ Personal video not found for order ${orderId}, nothing to delete`);
+    }
+  } catch (error) {
+    console.error(`Error deleting personal video for order ${orderId}:`, error);
+  }
 }
