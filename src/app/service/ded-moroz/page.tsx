@@ -45,9 +45,8 @@ export default function DedMorozServicePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [exampleVideoUrl, setExampleVideoUrl] = useState<string>(
-    '/api/videos/stream/final/final_2.mp4'
-  );
+  const [exampleVideoUrl, setExampleVideoUrl] = useState<string | null>(null);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
 
   const [formData, setFormData] = useState({
     childName: '',
@@ -81,19 +80,7 @@ export default function DedMorozServicePage() {
       }, 100);
     }
 
-    // Загружаем случайное примерное видео асинхронно с задержкой
-    setTimeout(() => {
-      fetch('/api/videos/example/random')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.videoUrl) {
-            setExampleVideoUrl(data.videoUrl);
-          }
-        })
-        .catch(() => {
-          // В случае ошибки используем дефолтное видео
-        });
-    }, 150);
+    // НЕ загружаем видео сразу - только при взаимодействии
   }, []);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, photoNum: 1 | 2) => {
@@ -211,6 +198,25 @@ export default function DedMorozServicePage() {
   };
 
   const toggleVideo = () => {
+    // Загружаем видео при первом клике
+    if (!shouldLoadVideo) {
+      setShouldLoadVideo(true);
+      // Загружаем URL видео
+      fetch('/api/videos/example/random')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.videoUrl) {
+            setExampleVideoUrl(data.videoUrl);
+          } else {
+            setExampleVideoUrl('/api/videos/stream/final/final_2.mp4');
+          }
+        })
+        .catch(() => {
+          setExampleVideoUrl('/api/videos/stream/final/final_2.mp4');
+        });
+      return;
+    }
+
     if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
@@ -218,6 +224,25 @@ export default function DedMorozServicePage() {
         videoRef.current.play();
       }
       setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleVideoHover = () => {
+    if (!shouldLoadVideo) {
+      setShouldLoadVideo(true);
+      // Загружаем URL видео при hover
+      fetch('/api/videos/example/random')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.videoUrl) {
+            setExampleVideoUrl(data.videoUrl);
+          } else {
+            setExampleVideoUrl('/api/videos/stream/final/final_2.mp4');
+          }
+        })
+        .catch(() => {
+          setExampleVideoUrl('/api/videos/stream/final/final_2.mp4');
+        });
     }
   };
 
@@ -297,21 +322,36 @@ export default function DedMorozServicePage() {
               Пример готового видео
             </h2>
 
-            <div className="relative aspect-video rounded-2xl overflow-hidden bg-black/50">
-              <video
-                ref={videoRef}
-                className="w-full h-full object-cover"
-                onEnded={() => setIsPlaying(false)}
-                playsInline
-                preload="metadata"
-                key={exampleVideoUrl}
-              >
-                <source src={exampleVideoUrl} type="video/mp4" />
-                <source
-                  src={exampleVideoUrl.replace('/api/videos/stream/', '/videos/')}
-                  type="video/mp4"
-                />
-              </video>
+            <div
+              className="relative aspect-video rounded-2xl overflow-hidden bg-black/50 cursor-pointer"
+              onMouseEnter={handleVideoHover}
+            >
+              {shouldLoadVideo && exampleVideoUrl ? (
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-cover"
+                  onEnded={() => setIsPlaying(false)}
+                  playsInline
+                  preload="none"
+                  key={exampleVideoUrl}
+                >
+                  <source src={exampleVideoUrl} type="video/mp4" />
+                  <source
+                    src={exampleVideoUrl.replace('/api/videos/stream/', '/videos/')}
+                    type="video/mp4"
+                  />
+                </video>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#1a3a5c] to-[#0c1929]">
+                  <div className="text-center">
+                    <span className="text-6xl mb-4 block">🎬</span>
+                    <p className="text-[#a8d8ea]">Пример готового видео</p>
+                    <p className="text-[#a8d8ea]/60 text-sm mt-2">
+                      Наведите курсор или кликните для просмотра
+                    </p>
+                  </div>
+                </div>
+              )}
               <button
                 onClick={toggleVideo}
                 className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors"
