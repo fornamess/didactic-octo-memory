@@ -12,11 +12,13 @@ export async function GET(request: NextRequest) {
 
     if (orders.length === 0) {
       // Если нет готовых видео, возвращаем заглушку или первый доступный вариант
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         videoUrl: '/api/videos/stream/final/final_2.mp4',
         fallback: true,
       });
+      response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+      return response;
     }
 
     // Фильтруем только те заказы, у которых файл реально существует
@@ -37,29 +39,38 @@ export async function GET(request: NextRequest) {
 
     if (validOrders.length === 0) {
       // Если ни одно видео не прошло проверку, используем заглушку
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         videoUrl: '/api/videos/stream/final/final_2.mp4',
         fallback: true,
       });
+      response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+      return response;
     }
 
     // Выбираем случайное видео
     const randomOrder = validOrders[Math.floor(Math.random() * validOrders.length)];
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       videoUrl: `/api/videos/stream/final/final_${randomOrder.id}.mp4`,
       orderId: randomOrder.id,
     });
+
+    // Кэшируем на 5 минут (примерные видео меняются не часто)
+    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+
+    return response;
   } catch (error) {
     console.error('Error getting random example video:', error);
     // В случае ошибки возвращаем заглушку
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       videoUrl: '/api/videos/stream/final/final_2.mp4',
       fallback: true,
       error: 'Failed to get random video',
     });
+    response.headers.set('Cache-Control', 'public, s-maxage=60');
+    return response;
   }
 }

@@ -48,6 +48,13 @@ export async function GET(
     const ext = path.extname(fullPath).toLowerCase();
     const contentType = ext === '.mp4' ? 'video/mp4' : 'application/octet-stream';
 
+    // Генерируем ETag для кэширования
+    const etag = `"${stats.mtime.getTime()}-${stats.size}"`;
+    const ifNoneMatch = request.headers.get('if-none-match');
+    if (ifNoneMatch === etag) {
+      return new NextResponse(null, { status: 304 });
+    }
+
     // Поддержка Range запросов для видео (для правильного воспроизведения)
     const range = request.headers.get('range');
     if (range) {
@@ -65,6 +72,7 @@ export async function GET(
           'Content-Length': chunkSize.toString(),
           'Content-Type': contentType,
           'Cache-Control': 'public, max-age=31536000, immutable',
+          'ETag': etag,
         },
       });
     }
@@ -76,6 +84,7 @@ export async function GET(
         'Content-Length': fileBuffer.length.toString(),
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'public, max-age=31536000, immutable',
+        'ETag': etag,
       },
     });
   } catch (error) {

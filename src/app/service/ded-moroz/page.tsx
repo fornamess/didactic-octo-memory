@@ -20,8 +20,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
-const SERVICE_COST = 0; // БЕСПЛАТНО!
-
 const COMMENT_SUGGESTIONS = [
   'занимается спортом и любит футбол',
   'отлично учится в школе',
@@ -47,7 +45,9 @@ export default function DedMorozServicePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [exampleVideoUrl, setExampleVideoUrl] = useState<string>('/api/videos/stream/final/final_2.mp4');
+  const [exampleVideoUrl, setExampleVideoUrl] = useState<string>(
+    '/api/videos/stream/final/final_2.mp4'
+  );
 
   const [formData, setFormData] = useState({
     childName: '',
@@ -297,10 +297,14 @@ export default function DedMorozServicePage() {
                 className="w-full h-full object-cover"
                 onEnded={() => setIsPlaying(false)}
                 playsInline
+                preload="metadata"
                 key={exampleVideoUrl}
               >
                 <source src={exampleVideoUrl} type="video/mp4" />
-                <source src={exampleVideoUrl.replace('/api/videos/stream/', '/videos/')} type="video/mp4" />
+                <source
+                  src={exampleVideoUrl.replace('/api/videos/stream/', '/videos/')}
+                  type="video/mp4"
+                />
               </video>
               <button
                 onClick={toggleVideo}
@@ -464,8 +468,10 @@ export default function DedMorozServicePage() {
                             <div className="relative aspect-video rounded-xl overflow-hidden">
                               <img
                                 src={formData.photo1Preview}
-                                alt="Фото 1"
+                                alt="Фото 1 - загруженное пользователем изображение"
                                 className="w-full h-full object-cover"
+                                loading="lazy"
+                                decoding="async"
                               />
                               <button
                                 type="button"
@@ -537,8 +543,10 @@ export default function DedMorozServicePage() {
                             <div className="relative aspect-video rounded-xl overflow-hidden">
                               <img
                                 src={formData.photo2Preview}
-                                alt="Фото 2"
+                                alt="Фото 2 - загруженное пользователем изображение"
                                 className="w-full h-full object-cover"
+                                loading="lazy"
+                                decoding="async"
                               />
                               <button
                                 type="button"

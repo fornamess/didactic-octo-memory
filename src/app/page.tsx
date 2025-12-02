@@ -1,6 +1,5 @@
 'use client';
 
-import Snowfall from '@/components/Snowfall';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -15,7 +14,10 @@ import {
   User,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, useEffect, useRef, useState, Suspense } from 'react';
+
+// Lazy loading для компонентов
+const Snowfall = lazy(() => import('@/components/Snowfall'));
 
 // Компонент для отображения примера видео
 function ExampleVideoPlayer() {
@@ -74,6 +76,7 @@ function ExampleVideoPlayer() {
           loop
           muted
           playsInline
+          preload="metadata"
           onLoadedData={handleVideoLoaded}
           onError={handleVideoError}
           style={{ display: showPlaceholder ? 'none' : 'block' }}
@@ -133,7 +136,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen relative overflow-hidden">
-      <Snowfall />
+      <Suspense fallback={null}>
+        <Snowfall />
+      </Suspense>
 
       {/* Декоративные звёзды */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
