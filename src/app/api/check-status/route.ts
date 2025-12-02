@@ -1,5 +1,4 @@
 import { getUserFromRequest } from '@/lib/auth';
-import { GENERATION_TIMEOUT_MINUTES } from '@/lib/config';
 import {
   ensureDbInitialized,
   getOrderByTaskId,
@@ -16,6 +15,7 @@ import {
   downloadVideo,
   generateIntroVideo,
   generateOutroVideo,
+  getFFmpegLockStatus,
   getFinalVideoPath,
   getPersonalVideoPath,
   getUniversalVideoPaths,
@@ -24,8 +24,6 @@ import {
 } from '@/lib/video-generator';
 import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
-
-const GENERATION_TIMEOUT_MS = GENERATION_TIMEOUT_MINUTES * 60 * 1000;
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,11 +41,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'taskId обязателен' }, { status: 400 });
     }
 
-    console.log(
-      `🔎 [CHECK-STATUS] Starting status check for taskId: ${taskId}, userId: ${user.id}`
-    );
+    console.log(`🔎 [CHECK-STATUS] taskId: ${taskId}, userId: ${user.id}`);
 
-    // Проверяем что заказ принадлежит пользователю
     const order = await getOrderByTaskId(Number(taskId));
     if (!order) {
       return NextResponse.json({ error: 'Заказ не найден' }, { status: 404 });
@@ -57,261 +52,111 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 
-    // ВАЖНО: Для завершенных заказов всегда проверяем размер финального видео
-    // Это исправляет проблему со старыми 15-секундными видео
-    console.log(`📋 Order status: ${order.status}, video_url: ${order.video_url || 'none'}`);
-    if (order.status === 'completed' && order.video_url) {
-      console.log(
-        `🔍 [COMPLETED ORDER CHECK] Order ${order.id} is completed, checking final video size...`
-      );
-      console.log(`   Order video_url: ${order.video_url}`);
-      const universalPaths = getUniversalVideoPaths();
-      const finalPath = getFinalVideoPath(order.id);
-      const personalPath = getPersonalVideoPath(order.id);
-      console.log(`   Final path: ${finalPath}`);
-      console.log(`   Personal path: ${personalPath}`);
+    // Получаем пути
+    const universalPaths = getUniversalVideoPaths();
+    const finalPath = getFinalVideoPath(order.id);
+    const personalPath = getPersonalVideoPath(order.id);
 
-      // Если финальное видео существует - проверяем его размер
-      if (fs.existsSync(finalPath)) {
-        // Проверяем размеры всех частей
-        const introSize = fs.existsSync(universalPaths.intro)
-          ? fs.statSync(universalPaths.intro).size
-          : 0;
-        const personalSize = fs.existsSync(personalPath) ? fs.statSync(personalPath).size : 0;
-        const outroSize = fs.existsSync(universalPaths.outro)
-          ? fs.statSync(universalPaths.outro).size
-          : 0;
+    // Проверяем статус FFmpeg лока
+    const lockStatus = getFFmpegLockStatus();
+    if (lockStatus.globalLocked) {
+      console.log(`🔒 FFmpeg is busy (lock age: ${Math.round((lockStatus.lockAge || 0) / 1000)}s)`);
+    }
 
-        // Если хотя бы одна часть существует, можем проверить размер
-        if (introSize > 0 || personalSize > 0 || outroSize > 0) {
-          const totalPartsSize = introSize + personalSize + outroSize;
-          const expectedMinSize = totalPartsSize * 0.7;
-          const finalSize = fs.statSync(finalPath).size;
+    // ЕСЛИ ФИНАЛЬНОЕ ВИДЕО УЖЕ СУЩЕСТВУЕТ - возвращаем его
+    if (fs.existsSync(finalPath)) {
+      const finalSize = fs.statSync(finalPath).size;
+      // Минимальный размер ~5MB для 45 сек видео
+      if (finalSize > 5 * 1024 * 1024) {
+        const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
 
-          console.log(`📊 Final video size check for completed order:`);
-          console.log(
-            `   Final size: ${finalSize} bytes (${(finalSize / 1024 / 1024).toFixed(2)} MB)`
-          );
-          console.log(
-            `   Expected min: ${expectedMinSize} bytes (${(expectedMinSize / 1024 / 1024).toFixed(
-              2
-            )} MB)`
-          );
-          console.log(
-            `   Intro: ${introSize} bytes, Personal: ${personalSize} bytes, Outro: ${outroSize} bytes`
-          );
-
-          // Если финальное видео слишком маленькое - удаляем для пересоздания
-          if (finalSize < expectedMinSize && expectedMinSize > 0) {
-            console.log(
-              `⚠️ Completed order has invalid final video size! ${finalSize} < ${expectedMinSize}`
-            );
-            console.log(`🗑️ Deleting incorrect final video to force recreation...`);
-            try {
-              fs.unlinkSync(finalPath);
-              console.log(`✅ Deleted incorrect final video, will be recreated below`);
-            } catch (err) {
-              console.error(`❌ Failed to delete final video:`, err);
-            }
-          }
+        // Обновляем статус если нужно
+        if (order.status !== 'completed' || order.video_url !== finalVideoUrl) {
+          await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
         }
+
+        // Очищаем временные файлы
+        deleteOrderPhotos(order.id);
+        deletePersonalVideo(order.id);
+
+        return NextResponse.json({
+          success: true,
+          taskId: Number(taskId),
+          status: 2,
+          statusDescription: 'completed',
+          videoUrl: finalVideoUrl,
+          isCompleted: true,
+          isFailed: false,
+        });
+      } else {
+        // Файл слишком маленький - удаляем
+        console.log(`⚠️ Final video too small (${finalSize} bytes), removing`);
+        try {
+          fs.unlinkSync(finalPath);
+        } catch {}
       }
     }
 
-    // Проверяем универсальные видео (файлы)
-    const universalPaths = getUniversalVideoPaths();
+    // Проверяем универсальные видео
     let introReady = universalPaths.introExists;
     let outroReady = universalPaths.outroExists;
 
-    // Получаем информацию о генерации универсальных видео из БД
     const introDb = await getUniversalVideo('intro');
     const outroDb = await getUniversalVideo('outro');
 
-    console.log('=== Check Status Debug ===');
-    console.log('introReady:', introReady, 'outroReady:', outroReady);
-    console.log('introDb:', introDb);
-    console.log('outroDb:', outroDb);
-
-    // Проверяем все задачи последовательно с задержками (чтобы избежать TOO_MANY_REQUESTS)
-    const statusChecks: Promise<void>[] = [];
-
-    // Функция для добавления задержки между запросами
     const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    // customerId для генерации
     const customerId = `web_user_${user.id}`;
 
-    // Если intro файла нет и нет активной генерации - автоматически запускаем
+    // Автозапуск генерации intro/outro если нужно
     if (!introReady && (!introDb || introDb.status === 'failed')) {
-      console.log('Intro not found and no active generation, auto-starting...');
-      statusChecks.push(
-        generateIntroVideo(customerId).then(async (result) => {
-          if (result.success && result.taskId) {
-            await setUniversalVideo('intro', result.taskId, 'processing');
-            console.log('Auto-generated intro task:', result.taskId);
-          } else {
-            console.error('Failed to auto-generate intro:', result.error);
-          }
-        })
-      );
-    }
-    // Если intro файла нет, но есть активная генерация - проверяем
-    else if (!introReady && introDb && introDb.task_id && introDb.status === 'processing') {
-      const dateStr = (introDb.updated_at || introDb.created_at).replace(' ', 'T') + 'Z';
-      const updatedAt = new Date(dateStr).getTime();
-      const now = Date.now();
-      const timePassed = now - updatedAt;
-
-      console.log(
-        `Intro check: updated ${Math.round(timePassed / 60000)} min ago, status: ${introDb.status}`
-      );
-
-      // ВСЕГДА проверяем реальный статус задачи через API
-      statusChecks.push(
-        delay(500).then(() =>
-          checkTaskStatus(introDb.task_id).then(async (introStatus) => {
-            console.log('Intro status from API:', introStatus);
-
-            // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
-            if (introStatus.error === 'TOO_MANY_REQUESTS') {
-              console.log('Intro: TOO_MANY_REQUESTS, skipping check');
-              return;
-            }
-
-            // Если задача завершена - скачиваем
-            if (introStatus.status === 'completed' && introStatus.videoUrl) {
-              console.log('Intro video completed, downloading...');
-              const saved = await saveIntroVideo(introStatus.videoUrl);
-              if (saved) {
-                introReady = true;
-                await updateUniversalVideoStatus('intro', 'completed', introStatus.videoUrl);
-                console.log('Intro video saved successfully');
-              }
-            }
-            // Если задача отклонена - помечаем как failed
-            else if (
-              introStatus.status === 'rejected with error' ||
-              introStatus.status === 'rejected due to timeout'
-            ) {
-              console.log('Intro video rejected, marking as failed');
-              await updateUniversalVideoStatus('intro', 'failed');
-            }
-            // Если задача всё ещё в процессе, но прошло много времени - проверяем таймаут
-            else if (
-              (introStatus.status === 'in queue' ||
-                introStatus.status === 'in progress' ||
-                introStatus.status === 'processing') &&
-              timePassed > GENERATION_TIMEOUT_MS
-            ) {
-              console.log(
-                `Intro still processing after ${Math.round(
-                  timePassed / 60000
-                )} min, marking as failed`
-              );
-              await updateUniversalVideoStatus('intro', 'failed');
-            }
-            // Если статус неизвестен и прошло много времени - сбрасываем
-            else if (!introStatus.success && timePassed > GENERATION_TIMEOUT_MS) {
-              console.log('Intro status check failed, marking as failed');
-              await updateUniversalVideoStatus('intro', 'failed');
-            }
-          })
-        )
-      );
+      console.log('Auto-starting intro generation...');
+      const result = await generateIntroVideo(customerId);
+      if (result.success && result.taskId) {
+        await setUniversalVideo('intro', result.taskId, 'processing');
+      }
+    } else if (!introReady && introDb?.task_id && introDb.status === 'processing') {
+      await delay(500);
+      const introStatus = await checkTaskStatus(introDb.task_id);
+      if (introStatus.status === 'completed' && introStatus.videoUrl) {
+        const saved = await saveIntroVideo(introStatus.videoUrl);
+        if (saved) {
+          introReady = true;
+          await updateUniversalVideoStatus('intro', 'completed', introStatus.videoUrl);
+        }
+      } else if (introStatus.status?.includes('rejected')) {
+        await updateUniversalVideoStatus('intro', 'failed');
+      }
     }
 
-    // Если outro файла нет и нет активной генерации - автоматически запускаем
     if (!outroReady && (!outroDb || outroDb.status === 'failed')) {
-      console.log('Outro not found and no active generation, auto-starting...');
-      statusChecks.push(
-        generateOutroVideo(customerId).then(async (result) => {
-          if (result.success && result.taskId) {
-            await setUniversalVideo('outro', result.taskId, 'processing');
-            console.log('Auto-generated outro task:', result.taskId);
-          } else {
-            console.error('Failed to auto-generate outro:', result.error);
-          }
-        })
-      );
-    }
-    // Если outro файла нет, но есть активная генерация - проверяем
-    else if (!outroReady && outroDb && outroDb.task_id && outroDb.status === 'processing') {
-      const dateStr = (outroDb.updated_at || outroDb.created_at).replace(' ', 'T') + 'Z';
-      const updatedAt = new Date(dateStr).getTime();
-      const now = Date.now();
-      const timePassed = now - updatedAt;
-
-      console.log(
-        `Outro check: updated ${Math.round(timePassed / 60000)} min ago, status: ${outroDb.status}`
-      );
-
-      // ВСЕГДА проверяем реальный статус задачи через API
-      statusChecks.push(
-        delay(1000).then(() =>
-          checkTaskStatus(outroDb.task_id).then(async (outroStatus) => {
-            console.log('Outro status from API:', outroStatus);
-
-            // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
-            if (outroStatus.error === 'TOO_MANY_REQUESTS') {
-              console.log('Outro: TOO_MANY_REQUESTS, skipping check');
-              return;
-            }
-
-            // Если задача завершена - скачиваем
-            if (outroStatus.status === 'completed' && outroStatus.videoUrl) {
-              console.log('Outro video completed, downloading...');
-              const saved = await saveOutroVideo(outroStatus.videoUrl);
-              if (saved) {
-                outroReady = true;
-                await updateUniversalVideoStatus('outro', 'completed', outroStatus.videoUrl);
-                console.log('Outro video saved successfully');
-              }
-            }
-            // Если задача отклонена - помечаем как failed
-            else if (
-              outroStatus.status === 'rejected with error' ||
-              outroStatus.status === 'rejected due to timeout'
-            ) {
-              console.log('Outro video rejected, marking as failed');
-              await updateUniversalVideoStatus('outro', 'failed');
-            }
-            // Если задача всё ещё в процессе, но прошло много времени - проверяем таймаут
-            else if (
-              (outroStatus.status === 'in queue' ||
-                outroStatus.status === 'in progress' ||
-                outroStatus.status === 'processing') &&
-              timePassed > GENERATION_TIMEOUT_MS
-            ) {
-              console.log(
-                `Outro still processing after ${Math.round(
-                  timePassed / 60000
-                )} min, marking as failed`
-              );
-              await updateUniversalVideoStatus('outro', 'failed');
-            }
-            // Если статус неизвестен и прошло много времени - сбрасываем
-            else if (!outroStatus.success && timePassed > GENERATION_TIMEOUT_MS) {
-              console.log('Outro status check failed, marking as failed');
-              await updateUniversalVideoStatus('outro', 'failed');
-            }
-          })
-        )
-      );
+      console.log('Auto-starting outro generation...');
+      const result = await generateOutroVideo(customerId);
+      if (result.success && result.taskId) {
+        await setUniversalVideo('outro', result.taskId, 'processing');
+      }
+    } else if (!outroReady && outroDb?.task_id && outroDb.status === 'processing') {
+      await delay(1000);
+      const outroStatus = await checkTaskStatus(outroDb.task_id);
+      if (outroStatus.status === 'completed' && outroStatus.videoUrl) {
+        const saved = await saveOutroVideo(outroStatus.videoUrl);
+        if (saved) {
+          outroReady = true;
+          await updateUniversalVideoStatus('outro', 'completed', outroStatus.videoUrl);
+        }
+      } else if (outroStatus.status?.includes('rejected')) {
+        await updateUniversalVideoStatus('outro', 'failed');
+      }
     }
 
-    // Ждём проверки универсальных видео
-    await Promise.all(statusChecks);
+    // Обновляем флаги после проверок
+    introReady = fs.existsSync(universalPaths.intro);
+    outroReady = fs.existsSync(universalPaths.outro);
 
-    // Обновляем статус после проверки
-    introReady = universalPaths.introExists || fs.existsSync(universalPaths.intro);
-    outroReady = universalPaths.outroExists || fs.existsSync(universalPaths.outro);
-
-    // Проверяем статус персонального видео (с задержкой после предыдущих проверок)
+    // Проверяем персональное видео
     await delay(1500);
     const personalStatus = await checkTaskStatus(Number(taskId));
-    console.log('Personal video status:', personalStatus);
 
-    // Если API вернул ошибку TOO_MANY_REQUESTS, но intro ещё генерируется - продолжаем
     if (!personalStatus.success) {
       if (!introReady || !outroReady) {
         return NextResponse.json({
@@ -325,34 +170,21 @@ export async function GET(request: NextRequest) {
           introReady,
           outroReady,
           personalReady: false,
-          apiError: personalStatus.error,
         });
       }
-      return NextResponse.json(
-        {
-          error: personalStatus.error,
-          status: 'error',
-          introReady,
-          outroReady,
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: personalStatus.error }, { status: 400 });
     }
 
     const isPersonalCompleted = personalStatus.status === 'completed';
     const personalVideoUrl = personalStatus.videoUrl;
 
-    // Если персональное видео готово
+    // Персональное видео готово
     if (isPersonalCompleted && personalVideoUrl) {
-      // Скачиваем персональное видео (если еще не скачано)
-      const personalPath = getPersonalVideoPath(order.id);
-
+      // Скачиваем если нет локально
       if (!fs.existsSync(personalPath)) {
-        console.log(`📥 Personal video not found locally, downloading from: ${personalVideoUrl}`);
-        console.log(`   Saving to: ${personalPath}`);
+        console.log('📥 Downloading personal video...');
         const downloaded = await downloadVideo(personalVideoUrl, personalPath);
         if (!downloaded) {
-          console.error('❌ Failed to download personal video');
           return NextResponse.json({
             success: true,
             taskId: Number(taskId),
@@ -360,245 +192,46 @@ export async function GET(request: NextRequest) {
             statusDescription: 'processing',
             isCompleted: false,
             isFailed: false,
-            message: 'Ошибка загрузки персонального видео',
+            message: 'Ошибка загрузки персонального видео, повторяем...',
           });
         }
-        console.log(`✅ Personal video downloaded successfully`);
-      } else {
-        const personalFileSize = fs.statSync(personalPath).size;
-        console.log(`✅ Personal video already exists locally: ${personalPath}`);
-        console.log(
-          `   File size: ${personalFileSize} bytes (${(personalFileSize / 1024 / 1024).toFixed(
-            2
-          )} MB)`
-        );
       }
 
-      // Если все части готовы - склеиваем
+      // Все части готовы - склеиваем
       if (introReady && outroReady && fs.existsSync(personalPath)) {
-        const finalPath = getFinalVideoPath(order.id);
-
-        // Проверяем размеры всех частей для валидации
-        const introSize = fs.existsSync(universalPaths.intro)
-          ? fs.statSync(universalPaths.intro).size
-          : 0;
-        const personalSize = fs.statSync(personalPath).size;
-        const outroSize = fs.existsSync(universalPaths.outro)
-          ? fs.statSync(universalPaths.outro).size
-          : 0;
-
-        // Исправленная формула: сумма всех частей * 0.7 (коэффициент учитывает перекодирование)
-        const totalPartsSize = introSize + personalSize + outroSize;
-        const expectedMinSize = totalPartsSize * 0.7;
-
-        console.log('=== Video Size Validation ===');
-        console.log(`Intro size: ${introSize} bytes (${(introSize / 1024 / 1024).toFixed(2)} MB)`);
-        console.log(
-          `Personal size: ${personalSize} bytes (${(personalSize / 1024 / 1024).toFixed(2)} MB)`
-        );
-        console.log(`Outro size: ${outroSize} bytes (${(outroSize / 1024 / 1024).toFixed(2)} MB)`);
-        console.log(
-          `Total parts size: ${totalPartsSize} bytes (${(totalPartsSize / 1024 / 1024).toFixed(
-            2
-          )} MB)`
-        );
-        console.log(
-          `Expected minimum final size: ${expectedMinSize} bytes (${(
-            expectedMinSize /
-            1024 /
-            1024
-          ).toFixed(2)} MB)`
-        );
-        console.log(`Order status: ${order.status}`);
-
-        let needsConcatenation = !fs.existsSync(finalPath);
-
-        // Принудительная проверка размера даже для завершенных заказов
-        // Если файл существует, проверяем его размер
-        if (fs.existsSync(finalPath)) {
-          const finalSize = fs.statSync(finalPath).size;
-          console.log(
-            `Final video exists: ${finalPath}, size: ${finalSize} bytes (${(
-              finalSize /
-              1024 /
-              1024
-            ).toFixed(2)} MB)`
-          );
-          console.log(
-            `Expected min: ${expectedMinSize} bytes (${(expectedMinSize / 1024 / 1024).toFixed(
-              2
-            )} MB)`
-          );
-
-          // Если финальный файл слишком маленький (меньше 70% от суммы всех частей), пересоздаём
-          if (finalSize < expectedMinSize) {
-            console.log(
-              `❌ Final video too small: ${finalSize} < ${expectedMinSize} (${(
-                (finalSize / expectedMinSize) *
-                100
-              ).toFixed(1)}% of expected)`
-            );
-            console.log(`🗑️ Deleting incorrect final video and will recreate...`);
-            // Удаляем неправильный файл
-            fs.unlinkSync(finalPath);
-            needsConcatenation = true;
-          } else {
-            console.log(
-              `✅ Final video size is OK: ${finalSize} >= ${expectedMinSize} (${(
-                (finalSize / expectedMinSize) *
-                100
-              ).toFixed(1)}% of expected)`
-            );
-          }
-        } else {
-          console.log(`Final video does not exist, will create: ${finalPath}`);
+        // Проверяем не занят ли FFmpeg
+        const lockStatus = getFFmpegLockStatus();
+        if (lockStatus.globalLocked && (lockStatus.lockAge || 0) < 9 * 60 * 1000) {
+          // FFmpeg занят менее 9 минут - ждём
+          console.log('⏳ FFmpeg busy, will retry...');
+          return NextResponse.json({
+            success: true,
+            taskId: Number(taskId),
+            status: 1,
+            statusDescription: 'processing',
+            isCompleted: false,
+            isFailed: false,
+            message: 'Идёт обработка другого видео, ждём...',
+            introReady,
+            outroReady,
+            personalReady: true,
+            ffmpegBusy: true,
+          });
         }
 
-        if (needsConcatenation) {
-          console.log('🔄 All parts ready, starting video concatenation...');
-          console.log(`   Intro: ${universalPaths.intro}`);
-          console.log(`   Personal: ${personalPath}`);
-          console.log(`   Outro: ${universalPaths.outro}`);
-          console.log(`   Output: ${finalPath}`);
+        console.log('🔄 Starting video concatenation...');
 
-          await concatenateVideos(
-            universalPaths.intro,
-            personalPath,
-            universalPaths.outro,
-            finalPath
-          );
+        const success = await concatenateVideos(
+          universalPaths.intro,
+          personalPath,
+          universalPaths.outro,
+          finalPath
+        );
 
-          // Проверяем файл независимо от возвращаемого значения concatenateVideos
-          // (функция может вернуть false из-за ошибки валидации, но файл может быть создан)
-          if (fs.existsSync(finalPath)) {
-            const finalSize = fs.statSync(finalPath).size;
-            console.log(`📹 Final video file exists: ${finalPath}`);
-            console.log(
-              `   Final video size: ${finalSize} bytes (${(finalSize / 1024 / 1024).toFixed(2)} MB)`
-            );
-            console.log(
-              `   Expected minimum: ${expectedMinSize} bytes (${(
-                expectedMinSize /
-                1024 /
-                1024
-              ).toFixed(2)} MB)`
-            );
-
-            if (finalSize < expectedMinSize) {
-              console.error(
-                `⚠️ WARNING: Final video size (${finalSize} bytes = ${(
-                  finalSize /
-                  1024 /
-                  1024
-                ).toFixed(2)} MB) is too small!`
-              );
-              console.error(
-                `   Expected at least: ${expectedMinSize} bytes (${(
-                  expectedMinSize /
-                  1024 /
-                  1024
-                ).toFixed(2)} MB)`
-              );
-              console.error(`   Concatenation may have failed or video is incomplete.`);
-
-              // Удаляем некорректный файл и пробуем использовать персональное видео
-              try {
-                fs.unlinkSync(finalPath);
-                console.log('🗑️ Deleted incomplete final video');
-              } catch (e) {
-                console.error('Error deleting incomplete file:', e);
-              }
-
-              // Используем персональное видео как fallback
-              console.log('📹 Using personal video as fallback');
-              const localPersonalUrl = `/api/videos/stream/personal/personal_${order.id}.mp4`;
-              await updateOrderStatus(
-                Number(taskId),
-                'completed',
-                'Видео готово (без склейки)',
-                localPersonalUrl
-              );
-
-              // Удаляем фотографии после успешной генерации (персональное видео оставляем, так как оно используется)
-              console.log(`🧹 Cleaning up photos for order ${order.id}...`);
-              deleteOrderPhotos(order.id);
-
-              return NextResponse.json({
-                success: true,
-                taskId: Number(taskId),
-                status: 2,
-                statusDescription: 'completed',
-                videoUrl: localPersonalUrl,
-                isCompleted: true,
-                isFailed: false,
-                message: 'Видео готово!',
-              });
-            } else {
-              // Файл существует и имеет правильный размер - используем его
-              console.log(`   ✅ Final video size validation passed!`);
-              console.log(`✅ Videos concatenated successfully!`);
-
-              const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
-              await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
-
-              // Удаляем фотографии и персональное видео после успешной генерации финального видео
-              console.log(`🧹 Cleaning up temporary files for order ${order.id}...`);
-              deleteOrderPhotos(order.id);
-              deletePersonalVideo(order.id);
-
-              return NextResponse.json({
-                success: true,
-                taskId: Number(taskId),
-                status: 2,
-                statusDescription: 'completed',
-                videoUrl: finalVideoUrl,
-                isCompleted: true,
-                isFailed: false,
-                message: 'Видео готово!',
-              });
-            }
-          } else {
-            // Файл не создан - используем персональное видео
-            console.log('❌ Final video file was not created after concatenation');
-            console.log('📹 Using personal video as fallback');
-            const localPersonalUrl = `/api/videos/stream/personal/personal_${order.id}.mp4`;
-            await updateOrderStatus(
-              Number(taskId),
-              'completed',
-              'Видео готово (без склейки)',
-              localPersonalUrl
-            );
-
-            // Удаляем фотографии после успешной генерации (персональное видео оставляем, так как оно используется)
-            console.log(`🧹 Cleaning up photos for order ${order.id}...`);
-            deleteOrderPhotos(order.id);
-
-            return NextResponse.json({
-              success: true,
-              taskId: Number(taskId),
-              status: 2,
-              statusDescription: 'completed',
-              videoUrl: localPersonalUrl,
-              isCompleted: true,
-              isFailed: false,
-              message: 'Видео готово!',
-            });
-          }
-        } else {
-          // Финальное видео уже существует и имеет правильный размер
+        if (success && fs.existsSync(finalPath)) {
           const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
-          console.log(`✅ Using existing final video (size validated): ${finalVideoUrl}`);
+          await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
 
-          // Обновляем URL в базе, если он отличается (например, был сохранен персональный или интро)
-          if (order.video_url !== finalVideoUrl) {
-            console.log(
-              `📝 Updating video_url in DB from "${order.video_url}" to "${finalVideoUrl}"`
-            );
-            await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
-          }
-
-          // Удаляем фотографии и персональное видео, если финальное видео уже готово
-          console.log(`🧹 Cleaning up temporary files for order ${order.id}...`);
           deleteOrderPhotos(order.id);
           deletePersonalVideo(order.id);
 
@@ -610,6 +243,32 @@ export async function GET(request: NextRequest) {
             videoUrl: finalVideoUrl,
             isCompleted: true,
             isFailed: false,
+            message: 'Видео готово!',
+          });
+        } else {
+          // Склейка не удалась - используем персональное видео как fallback
+          console.log('⚠️ Concatenation failed, using personal video as fallback');
+
+          const localPersonalUrl = `/api/videos/stream/personal/personal_${order.id}.mp4`;
+          await updateOrderStatus(
+            Number(taskId),
+            'completed',
+            'Видео готово (без склейки)',
+            localPersonalUrl
+          );
+
+          deleteOrderPhotos(order.id);
+
+          return NextResponse.json({
+            success: true,
+            taskId: Number(taskId),
+            status: 2,
+            statusDescription: 'completed',
+            videoUrl: localPersonalUrl,
+            isCompleted: true,
+            isFailed: false,
+            message: 'Видео готово!',
+            fallback: true,
           });
         }
       } else {
@@ -630,24 +289,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Персональное видео ещё генерируется
-    const isFailed =
-      personalStatus.status === 'rejected with error' ||
-      personalStatus.status === 'rejected due to timeout' ||
-      personalStatus.status?.includes('rejected');
+    const isFailed = personalStatus.status?.includes('rejected');
 
     if (isFailed) {
-      const errorDetails = personalStatus.error || personalStatus.status || 'Неизвестная ошибка';
-      console.error(`❌ Personal video task ${taskId} failed:`);
-      console.error(`   Status: ${personalStatus.status}`);
-      console.error(`   Error: ${errorDetails}`);
-      console.error(`   Full status object:`, JSON.stringify(personalStatus, null, 2));
-
       await updateOrderStatus(
         Number(taskId),
-        personalStatus.status || 'rejected with error',
-        errorDetails,
+        personalStatus.status || 'rejected',
+        personalStatus.error || 'Ошибка генерации',
         undefined,
-        errorDetails
+        personalStatus.error
       );
     }
 
@@ -661,12 +311,12 @@ export async function GET(request: NextRequest) {
           ? 1
           : personalStatus.status === 'completed'
           ? 2
-          : personalStatus.status === 'rejected with error'
+          : isFailed
           ? 3
           : 4,
       statusDescription: personalStatus.status,
       isCompleted: false,
-      isFailed: isFailed,
+      isFailed,
       error: personalStatus.error,
       introReady,
       outroReady,
