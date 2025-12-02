@@ -282,15 +282,59 @@ export async function GET(request: NextRequest) {
 
       if (!fs.existsSync(personalPath)) {
         console.log('Downloading personal video...');
-        await downloadVideo(personalVideoUrl, personalPath);
+        const downloaded = await downloadVideo(personalVideoUrl, personalPath);
+        if (!downloaded) {
+          console.error('Failed to download personal video');
+          return NextResponse.json({
+            success: true,
+            taskId: Number(taskId),
+            status: 1,
+            statusDescription: 'processing',
+            isCompleted: false,
+            isFailed: false,
+            message: 'Ошибка загрузки персонального видео',
+          });
+        }
       }
 
       // Если все части готовы - склеиваем
       if (introReady && outroReady && fs.existsSync(personalPath)) {
         const finalPath = getFinalVideoPath(order.id);
 
-        if (!fs.existsSync(finalPath)) {
+        // Проверяем размеры всех частей для валидации
+        const introSize = fs.existsSync(universalPaths.intro)
+          ? fs.statSync(universalPaths.intro).size
+          : 0;
+        const personalSize = fs.statSync(personalPath).size;
+        const outroSize = fs.existsSync(universalPaths.outro)
+          ? fs.statSync(universalPaths.outro).size
+          : 0;
+        const expectedMinSize = Math.min(introSize, personalSize, outroSize) * 2; // Минимум должно быть больше самой маленькой части
+
+        let needsConcatenation = !fs.existsSync(finalPath);
+
+        // Если файл существует, проверяем его размер
+        if (fs.existsSync(finalPath)) {
+          const finalSize = fs.statSync(finalPath).size;
+          console.log(
+            `Final video exists: ${finalPath}, size: ${finalSize}, expected min: ${expectedMinSize}`
+          );
+          // Если финальный файл слишком маленький (меньше суммы всех частей), пересоздаём
+          if (finalSize < expectedMinSize) {
+            console.log(
+              `Final video too small (${finalSize} < ${expectedMinSize}), will recreate...`
+            );
+            // Удаляем неправильный файл
+            fs.unlinkSync(finalPath);
+            needsConcatenation = true;
+          }
+        }
+
+        if (needsConcatenation) {
           console.log('All parts ready, concatenating videos...');
+          console.log(
+            `File sizes - Intro: ${introSize}, Personal: ${personalSize}, Outro: ${outroSize}`
+          );
           const concatenated = await concatenateVideos(
             universalPaths.intro,
             personalPath,
@@ -299,7 +343,17 @@ export async function GET(request: NextRequest) {
           );
 
           if (concatenated) {
-            console.log('Videos concatenated successfully!');
+            // Проверяем что файл создан и имеет правильный размер
+            if (fs.existsSync(finalPath)) {
+              const finalSize = fs.statSync(finalPath).size;
+              console.log(`Videos concatenated successfully! Final size: ${finalSize}`);
+              if (finalSize < expectedMinSize) {
+                console.error(
+                  `WARNING: Final video size (${finalSize}) is too small, concatenation may have failed`
+                );
+              }
+            }
+
             const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
             await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
 
@@ -336,8 +390,16 @@ export async function GET(request: NextRequest) {
             });
           }
         } else {
-          // Финальное видео уже существует
+          // Финальное видео уже существует и имеет правильный размер
           const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
+          console.log(`Using existing final video: ${finalVideoUrl}`);
+
+          // Обновляем URL в базе, если он отличается (например, был сохранен персональный или интро)
+          if (order.video_url !== finalVideoUrl) {
+            console.log(`Updating video_url in DB from ${order.video_url} to ${finalVideoUrl}`);
+            await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
+          }
+
           return NextResponse.json({
             success: true,
             taskId: Number(taskId),
