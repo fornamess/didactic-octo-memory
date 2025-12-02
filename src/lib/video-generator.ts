@@ -301,8 +301,27 @@ file '${outroPath.replace(/\\/g, '/')}'`;
           ffmpeg()
             .input(listPath)
             .inputOptions(['-f', 'concat', '-safe', '0'])
-            .outputOptions(['-c', 'copy'])
+            .outputOptions([
+              '-c:v',
+              'libx264', // Перекодирование видео в H.264
+              '-c:a',
+              'aac', // Перекодирование аудио в AAC
+              '-preset',
+              'medium', // Баланс скорости и качества
+              '-crf',
+              '23', // Качество видео (18-28, меньше = лучше)
+              '-movflags',
+              '+faststart', // Быстрый старт для веб-воспроизведения
+            ])
             .output(outputPath)
+            .on('start', (commandLine) => {
+              console.log('FFmpeg command:', commandLine);
+            })
+            .on('progress', (progress) => {
+              if (progress.percent) {
+                console.log(`Concatenation progress: ${Math.round(progress.percent)}%`);
+              }
+            })
             .on('end', () => {
               // Удаляем временный файл
               fs.unlinkSync(listPath);

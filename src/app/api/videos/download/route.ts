@@ -35,7 +35,14 @@ export async function GET(request: NextRequest) {
 
     // Проксируем видео через наш сервер
     try {
-      const videoResponse = await fetch(order.video_url);
+      // Если video_url относительный путь, создаём полный URL
+      let videoUrl = order.video_url;
+      if (videoUrl.startsWith('/')) {
+        const baseUrl = new URL(request.url).origin;
+        videoUrl = `${baseUrl}${videoUrl}`;
+      }
+
+      const videoResponse = await fetch(videoUrl);
       if (!videoResponse.ok) {
         throw new Error('Не удалось загрузить видео');
       }
