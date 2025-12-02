@@ -1,5 +1,5 @@
 import { getUserFromRequest } from '@/lib/auth';
-import { SERVICE_COST } from '@/lib/config';
+import { GENERATION_TIMEOUT_MINUTES, SERVICE_COST } from '@/lib/config';
 import {
   createOrder,
   ensureDbInitialized,
@@ -7,6 +7,7 @@ import {
   getUserBalance,
   setUniversalVideo,
   updateOrderTaskId,
+  updateUniversalVideoStatus,
   updateUserBalance,
 } from '@/lib/db';
 import {
@@ -76,11 +77,48 @@ export async function POST(request: NextRequest) {
 
     // Проверяем наличие универсальных видео (файлы на диске)
     const universalVideos = checkUniversalVideosExist();
+    console.log('=== Universal Videos Check ===');
     console.log('Universal videos exist:', universalVideos);
 
     // Проверяем есть ли уже запущенная генерация универсальных видео
-    const introDb = await getUniversalVideo('intro');
-    const outroDb = await getUniversalVideo('outro');
+    let introDb = await getUniversalVideo('intro');
+    let outroDb = await getUniversalVideo('outro');
+    
+    console.log('=== Universal Videos DB Status ===');
+    console.log('introDb:', introDb);
+    console.log('outroDb:', outroDb);
+
+    // Таймаут для застрявших генераций
+    const TIMEOUT_MS = GENERATION_TIMEOUT_MINUTES * 60 * 1000;
+    const now = Date.now();
+
+    // Проверяем, не застряла ли генерация intro
+    if (introDb && introDb.status === 'processing') {
+      const dateStr = (introDb.updated_at || introDb.created_at).replace(' ', 'T') + 'Z';
+      const updatedAt = new Date(dateStr).getTime();
+      const timePassed = now - updatedAt;
+      console.log(`Intro generation age: ${Math.round(timePassed / 60000)} minutes`);
+      
+      if (timePassed > TIMEOUT_MS) {
+        console.log('Intro generation stuck, resetting to failed...');
+        await updateUniversalVideoStatus('intro', 'failed');
+        introDb = { ...introDb, status: 'failed' };
+      }
+    }
+
+    // Проверяем, не застряла ли генерация outro
+    if (outroDb && outroDb.status === 'processing') {
+      const dateStr = (outroDb.updated_at || outroDb.created_at).replace(' ', 'T') + 'Z';
+      const updatedAt = new Date(dateStr).getTime();
+      const timePassed = now - updatedAt;
+      console.log(`Outro generation age: ${Math.round(timePassed / 60000)} minutes`);
+      
+      if (timePassed > TIMEOUT_MS) {
+        console.log('Outro generation stuck, resetting to failed...');
+        await updateUniversalVideoStatus('outro', 'failed');
+        outroDb = { ...outroDb, status: 'failed' };
+      }
+    }
 
     const customerId = `web_user_${user.id}`;
     const tasksToGenerate: { type: string; taskId?: number }[] = [];
@@ -89,7 +127,10 @@ export async function POST(request: NextRequest) {
     const generateTasks: Promise<void>[] = [];
 
     // Если нет intro файла и нет активной генерации - генерируем
-    if (!universalVideos.intro && (!introDb || introDb.status === 'failed')) {
+    const shouldGenerateIntro = !universalVideos.intro && (!introDb || introDb.status === 'failed');
+    console.log('Should generate intro?', shouldGenerateIntro, '(file exists:', universalVideos.intro, ', db status:', introDb?.status, ')');
+    
+    if (shouldGenerateIntro) {
       console.log('Intro video not found, will generate...');
       generateTasks.push(
         generateIntroVideo(customerId).then(async (result) => {
@@ -107,7 +148,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Если нет outro файла и нет активной генерации - генерируем
-    if (!universalVideos.outro && (!outroDb || outroDb.status === 'failed')) {
+    const shouldGenerateOutro = !universalVideos.outro && (!outroDb || outroDb.status === 'failed');
+    console.log('Should generate outro?', shouldGenerateOutro, '(file exists:', universalVideos.outro, ', db status:', outroDb?.status, ')');
+    
+    if (shouldGenerateOutro) {
       console.log('Outro video not found, will generate...');
       generateTasks.push(
         generateOutroVideo(customerId).then(async (result) => {

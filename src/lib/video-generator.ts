@@ -3,7 +3,6 @@ import path from 'path';
 import {
   FFMPEG_PATH,
   VIDEO_PROMPTS,
-  VIDEO_PUBLIC_PATH,
   VIDEO_STORAGE_PATH,
   YES_AI_API_BASE,
   YES_AI_TOKEN,
@@ -38,9 +37,6 @@ ensureVideoStorage();
 // Пути к универсальным видео (используем storage path для записи)
 const INTRO_PATH = path.join(VIDEO_STORAGE_PATH, 'intro.mp4');
 const OUTRO_PATH = path.join(VIDEO_STORAGE_PATH, 'outro.mp4');
-
-// Путь для Next.js статики (для чтения)
-const VIDEOS_DIR = VIDEO_PUBLIC_PATH;
 
 interface GenerationResult {
   success: boolean;
@@ -81,13 +77,13 @@ export async function createVideoTask(
         Authorization: `Bearer ${YES_AI_TOKEN}`,
       },
       body: JSON.stringify({
-        sora_version: 2,
+        version: 2,
         prompt: prompt,
         customer_id: customerId,
-        sora_resolution: 720,
-        sora_dimensions: '16:9',
-        sora_duration: 15, // Максимально доступное значение (10 или 15 секунд)
-        sora_effect_id: 0,
+        resolution: 720,
+        dimensions: '16:9',
+        duration: 15, // Максимально доступное значение (10 или 15 секунд)
+        effect_id: 0,
       }),
     });
 
@@ -119,12 +115,34 @@ export async function createVideoTask(
   }
 }
 
+// Кэш для последних запросов статуса (чтобы избежать TOO_MANY_REQUESTS)
+const statusCache = new Map<number, { result: StatusResult; timestamp: number }>();
+const STATUS_CACHE_TTL = 5000; // 5 секунд кэш
+const MIN_REQUEST_INTERVAL = 2000; // Минимум 2 секунды между запросами
+let lastRequestTime = 0;
+
 // Проверка статуса задания
 export async function checkTaskStatus(taskId: number): Promise<StatusResult> {
   try {
     if (!YES_AI_TOKEN) {
       return { success: false, status: 'error', error: 'API токен не настроен' };
     }
+
+    // Проверяем кэш
+    const cached = statusCache.get(taskId);
+    if (cached && Date.now() - cached.timestamp < STATUS_CACHE_TTL) {
+      return cached.result;
+    }
+
+    // Защита от слишком частых запросов
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest)
+      );
+    }
+    lastRequestTime = Date.now();
 
     const response = await fetch(`${YES_AI_API_BASE}/yesvideo/animations/${taskId}`, {
       method: 'GET',
@@ -137,19 +155,37 @@ export async function checkTaskStatus(taskId: number): Promise<StatusResult> {
     const data = await response.json();
 
     if (!data.success) {
-      return { success: false, status: 'error', error: data.message };
+      const result: StatusResult = {
+        success: false,
+        status: 'error',
+        error: data.message,
+      };
+      // Кэшируем ошибки тоже, но на меньшее время
+      statusCache.set(taskId, { result, timestamp: Date.now() });
+      return result;
     }
 
     const animationData = data.results?.animation_data;
     if (!animationData) {
-      return { success: false, status: 'error', error: 'Данные не найдены' };
+      const result: StatusResult = {
+        success: false,
+        status: 'error',
+        error: 'Данные не найдены',
+      };
+      statusCache.set(taskId, { result, timestamp: Date.now() });
+      return result;
     }
 
-    return {
+    const result: StatusResult = {
       success: true,
       status: animationData.status_description,
       videoUrl: animationData.result_url || undefined,
     };
+
+    // Кэшируем результат
+    statusCache.set(taskId, { result, timestamp: Date.now() });
+
+    return result;
   } catch (error) {
     console.error('Check task status error:', error);
     return { success: false, status: 'error', error: 'Ошибка проверки статуса' };
@@ -214,19 +250,26 @@ export async function saveOutroVideo(videoUrl: string): Promise<boolean> {
 }
 
 // Получение путей к универсальным видео
-// Возвращаем пути для Next.js статики (через public/videos)
-// Фактическое хранение в VIDEO_STORAGE_PATH, но доступ через public/videos
+// Возвращаем пути к реальным файлам в storage для склейки
+// И пути для Next.js статики для отображения
 export function getUniversalVideoPaths() {
-  // Пути для Next.js статики (относительно public/)
-  const publicIntroPath = path.join(VIDEOS_DIR, 'intro.mp4');
-  const publicOutroPath = path.join(VIDEOS_DIR, 'outro.mp4');
+  // Проверяем существование в storage
+  const introExists = fs.existsSync(INTRO_PATH);
+  const outroExists = fs.existsSync(OUTRO_PATH);
 
-  // Проверяем существование в storage (откуда реально читаем)
+  console.log('Checking universal video paths:');
+  console.log('  INTRO_PATH:', INTRO_PATH, 'exists:', introExists);
+  console.log('  OUTRO_PATH:', OUTRO_PATH, 'exists:', outroExists);
+
   return {
-    intro: publicIntroPath, // Путь для Next.js
-    outro: publicOutroPath, // Путь для Next.js
-    introExists: fs.existsSync(INTRO_PATH), // Проверка в storage
-    outroExists: fs.existsSync(OUTRO_PATH), // Проверка в storage
+    // Используем storage paths для склейки (реальные файлы)
+    intro: INTRO_PATH,
+    outro: OUTRO_PATH,
+    // Пути для веба (через public/videos)
+    introPublic: '/videos/intro.mp4',
+    outroPublic: '/videos/outro.mp4',
+    introExists,
+    outroExists,
   };
 }
 

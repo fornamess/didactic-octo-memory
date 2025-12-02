@@ -60,8 +60,11 @@ export async function GET(request: NextRequest) {
     const introDb = await getUniversalVideo('intro');
     const outroDb = await getUniversalVideo('outro');
 
-    // Проверяем все задачи параллельно
+    // Проверяем все задачи последовательно с задержками (чтобы избежать TOO_MANY_REQUESTS)
     const statusChecks: Promise<void>[] = [];
+
+    // Функция для добавления задержки между запросами
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     // customerId для генерации
     const customerId = `web_user_${user.id}`;
@@ -98,23 +101,30 @@ export async function GET(request: NextRequest) {
         await updateUniversalVideoStatus('intro', 'failed');
       } else {
         statusChecks.push(
-          checkTaskStatus(introDb.task_id).then(async (introStatus) => {
-            console.log('Intro status:', introStatus);
-            if (introStatus.status === 'completed' && introStatus.videoUrl) {
-              console.log('Intro video completed, downloading...');
-              const saved = await saveIntroVideo(introStatus.videoUrl);
-              if (saved) {
-                introReady = true;
-                await updateUniversalVideoStatus('intro', 'completed', introStatus.videoUrl);
-                console.log('Intro video saved successfully');
+          delay(500).then(() =>
+            checkTaskStatus(introDb.task_id).then(async (introStatus) => {
+              console.log('Intro status:', introStatus);
+              // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
+              if (introStatus.error === 'TOO_MANY_REQUESTS') {
+                console.log('Intro: TOO_MANY_REQUESTS, skipping check');
+                return;
               }
-            } else if (
-              introStatus.status === 'rejected with error' ||
-              introStatus.status === 'rejected due to timeout'
-            ) {
-              await updateUniversalVideoStatus('intro', 'failed');
-            }
-          })
+              if (introStatus.status === 'completed' && introStatus.videoUrl) {
+                console.log('Intro video completed, downloading...');
+                const saved = await saveIntroVideo(introStatus.videoUrl);
+                if (saved) {
+                  introReady = true;
+                  await updateUniversalVideoStatus('intro', 'completed', introStatus.videoUrl);
+                  console.log('Intro video saved successfully');
+                }
+              } else if (
+                introStatus.status === 'rejected with error' ||
+                introStatus.status === 'rejected due to timeout'
+              ) {
+                await updateUniversalVideoStatus('intro', 'failed');
+              }
+            })
+          )
         );
       }
     }
@@ -151,23 +161,30 @@ export async function GET(request: NextRequest) {
         await updateUniversalVideoStatus('outro', 'failed');
       } else {
         statusChecks.push(
-          checkTaskStatus(outroDb.task_id).then(async (outroStatus) => {
-            console.log('Outro status:', outroStatus);
-            if (outroStatus.status === 'completed' && outroStatus.videoUrl) {
-              console.log('Outro video completed, downloading...');
-              const saved = await saveOutroVideo(outroStatus.videoUrl);
-              if (saved) {
-                outroReady = true;
-                await updateUniversalVideoStatus('outro', 'completed', outroStatus.videoUrl);
-                console.log('Outro video saved successfully');
+          delay(1000).then(() =>
+            checkTaskStatus(outroDb.task_id).then(async (outroStatus) => {
+              console.log('Outro status:', outroStatus);
+              // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
+              if (outroStatus.error === 'TOO_MANY_REQUESTS') {
+                console.log('Outro: TOO_MANY_REQUESTS, skipping check');
+                return;
               }
-            } else if (
-              outroStatus.status === 'rejected with error' ||
-              outroStatus.status === 'rejected due to timeout'
-            ) {
-              await updateUniversalVideoStatus('outro', 'failed');
-            }
-          })
+              if (outroStatus.status === 'completed' && outroStatus.videoUrl) {
+                console.log('Outro video completed, downloading...');
+                const saved = await saveOutroVideo(outroStatus.videoUrl);
+                if (saved) {
+                  outroReady = true;
+                  await updateUniversalVideoStatus('outro', 'completed', outroStatus.videoUrl);
+                  console.log('Outro video saved successfully');
+                }
+              } else if (
+                outroStatus.status === 'rejected with error' ||
+                outroStatus.status === 'rejected due to timeout'
+              ) {
+                await updateUniversalVideoStatus('outro', 'failed');
+              }
+            })
+          )
         );
       }
     }
@@ -179,7 +196,8 @@ export async function GET(request: NextRequest) {
     introReady = universalPaths.introExists || fs.existsSync(universalPaths.intro);
     outroReady = universalPaths.outroExists || fs.existsSync(universalPaths.outro);
 
-    // Проверяем статус персонального видео
+    // Проверяем статус персонального видео (с задержкой после предыдущих проверок)
+    await delay(1500);
     const personalStatus = await checkTaskStatus(Number(taskId));
     console.log('Personal video status:', personalStatus);
 
