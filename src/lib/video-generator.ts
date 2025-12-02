@@ -337,6 +337,8 @@ file '${outroPath.replace(/\\/g, '/')}'`;
 
           // Используем ultrafast preset для минимизации использования ресурсов
           // и избежания SIGKILL от системы
+          // Убрали -movflags +faststart, так как он вызывает ошибку при переоткрытии файла
+          // Видео будет работать, просто может немного медленнее начинать воспроизведение
           ffmpeg()
             .input(listPath)
             .inputOptions(['-f', 'concat', '-safe', '0'])
@@ -349,8 +351,6 @@ file '${outroPath.replace(/\\/g, '/')}'`;
               'ultrafast', // Самый быстрый preset - меньше ресурсов, больше размер файла
               '-crf',
               '28', // Чуть хуже качество, но быстрее
-              '-movflags',
-              '+faststart',
               '-threads',
               '2', // Ограничиваем потоки для меньшего использования CPU
               '-y', // Перезаписывать выходной файл
@@ -422,9 +422,13 @@ file '${outroPath.replace(/\\/g, '/')}'`;
               if (fs.existsSync(outputPath)) {
                 try {
                   const outputSize = fs.statSync(outputPath).size;
-                  if (outputSize < 100000) {
-                    // Если файл очень маленький, вероятно процесс был прерван
-                    console.log('Removing incomplete output file');
+                  // Проверяем размер относительно ожидаемого минимума
+                  const expectedMinSize = (introSize + personalSize + outroSize) * 0.5;
+                  if (outputSize < expectedMinSize) {
+                    // Если файл слишком маленький, вероятно процесс был прерван или произошла ошибка
+                    console.log(
+                      `Removing incomplete output file (size: ${outputSize}, expected min: ${expectedMinSize})`
+                    );
                     fs.unlinkSync(outputPath);
                   }
                 } catch (e) {
