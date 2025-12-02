@@ -515,30 +515,44 @@ export async function concatenateVideos(
 
     ffmpeg.setFfmpegPath(FFMPEG_PATH);
 
-    // Получаем длительность видео
-    const getVideoDuration = (videoPath: string): Promise<number> => {
+    // Получаем метаданные видео (длительность и наличие аудио)
+    const getVideoMetadata = (videoPath: string): Promise<{ duration: number; hasAudio: boolean }> => {
       return new Promise((resolve) => {
         ffmpeg.ffprobe(
           videoPath,
-          (err: Error | null, metadata?: { format?: { duration?: number } }) => {
-            if (err || !metadata?.format?.duration) {
-              resolve(15);
-            } else {
-              resolve(metadata.format.duration);
+          (err: Error | null, metadata?: { format?: { duration?: number }; streams?: Array<{ codec_type?: string }> }) => {
+            if (err) {
+              console.warn(`Error probing ${videoPath}:`, err.message);
+              resolve({ duration: 15, hasAudio: false });
+              return;
             }
+            
+            const duration = metadata?.format?.duration || 15;
+            const hasAudio = metadata?.streams?.some(stream => stream.codec_type === 'audio') || false;
+            
+            resolve({ duration, hasAudio });
           }
         );
       });
     };
 
-    const [introDuration, personalDuration, outroDuration] = await Promise.all([
-      getVideoDuration(introPath),
-      getVideoDuration(personalPath),
-      getVideoDuration(outroPath),
+    const [introMeta, personalMeta, outroMeta] = await Promise.all([
+      getVideoMetadata(introPath),
+      getVideoMetadata(personalPath),
+      getVideoMetadata(outroPath),
     ]);
+
+    const introDuration = introMeta.duration;
+    const personalDuration = personalMeta.duration;
+    const outroDuration = outroMeta.duration;
+
+    const hasAudio = introMeta.hasAudio || personalMeta.hasAudio || outroMeta.hasAudio;
 
     console.log(
       `Durations - Intro: ${introDuration}s, Personal: ${personalDuration}s, Outro: ${outroDuration}s`
+    );
+    console.log(
+      `Audio tracks - Intro: ${introMeta.hasAudio}, Personal: ${personalMeta.hasAudio}, Outro: ${outroMeta.hasAudio}`
     );
 
     // Используем более короткий fade для экономии памяти
@@ -546,14 +560,55 @@ export async function concatenateVideos(
     const introFadeOutStart = Math.max(0, introDuration - fadeDuration);
     const personalFadeOutStart = Math.max(0, personalDuration - fadeDuration);
 
-    // ОПТИМИЗИРОВАННЫЙ фильтр - меньше потребление памяти
-    const filterComplex = [
-      `[0:v]fade=t=out:st=${introFadeOutStart}:d=${fadeDuration}[v0]`,
-      `[1:v]fade=t=in:st=0:d=${fadeDuration},fade=t=out:st=${personalFadeOutStart}:d=${fadeDuration}[v1]`,
-      `[2:v]fade=t=in:st=0:d=${fadeDuration}[v2]`,
-      `[v0][v1][v2]concat=n=3:v=1:a=0[outv]`,
-      `[0:a][1:a][2:a]concat=n=3:v=0:a=1[outa]`,
-    ].join('; ');
+    // ОПТИМИЗИРОВАННЫЙ фильтр - проверяем наличие аудио
+    let filterComplex: string;
+    let outputOptions: string[];
+
+    if (hasAudio && introMeta.hasAudio && personalMeta.hasAudio && outroMeta.hasAudio) {
+      // Все видео имеют аудио - используем полную конкатенацию
+      filterComplex = [
+        `[0:v]fade=t=out:st=${introFadeOutStart}:d=${fadeDuration}[v0]`,
+        `[1:v]fade=t=in:st=0:d=${fadeDuration},fade=t=out:st=${personalFadeOutStart}:d=${fadeDuration}[v1]`,
+        `[2:v]fade=t=in:st=0:d=${fadeDuration}[v2]`,
+        `[v0][v1][v2]concat=n=3:v=1:a=0[outv]`,
+        `[0:a][1:a][2:a]concat=n=3:v=0:a=1[outa]`,
+      ].join('; ');
+      
+      outputOptions = [
+        '-map', '[outv]',
+        '-map', '[outa]',
+        '-c:v', 'libx264',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-preset', 'ultrafast',
+        '-crf', '28',
+        '-pix_fmt', 'yuv420p',
+        '-threads', '1',
+        '-max_muxing_queue_size', '512',
+        '-y',
+      ];
+    } else {
+      // Нет аудио или не во всех видео - только видео конкатенация
+      console.log('⚠️ Some videos missing audio, using video-only concatenation');
+      filterComplex = [
+        `[0:v]fade=t=out:st=${introFadeOutStart}:d=${fadeDuration}[v0]`,
+        `[1:v]fade=t=in:st=0:d=${fadeDuration},fade=t=out:st=${personalFadeOutStart}:d=${fadeDuration}[v1]`,
+        `[2:v]fade=t=in:st=0:d=${fadeDuration}[v2]`,
+        `[v0][v1][v2]concat=n=3:v=1:a=0[outv]`,
+      ].join('; ');
+      
+      outputOptions = [
+        '-map', '[outv]',
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-crf', '28',
+        '-pix_fmt', 'yuv420p',
+        '-threads', '1',
+        '-max_muxing_queue_size', '512',
+        '-an', // Без аудио
+        '-y',
+      ];
+    }
 
     return new Promise((resolve) => {
       const ffmpegCommand = ffmpeg()
@@ -561,36 +616,16 @@ export async function concatenateVideos(
         .input(personalPath)
         .input(outroPath)
         .complexFilter(filterComplex)
-        .outputOptions([
-          '-map',
-          '[outv]',
-          '-map',
-          '[outa]',
-          '-c:v',
-          'libx264',
-          '-c:a',
-          'aac',
-          '-b:a',
-          '128k', // Было 192k - снизили
-          '-preset',
-          'ultrafast', // Максимально быстрый пресет
-          '-crf',
-          '28', // Больше сжатие, меньше память
-          '-pix_fmt',
-          'yuv420p',
-          '-threads',
-          '1', // ОДИН поток - критично для 1GB RAM
-          '-max_muxing_queue_size',
-          '512', // Предотвращает переполнение буфера
-          '-y',
-        ])
+        .outputOptions(outputOptions)
         .output(outputPath);
 
       let lastProgress = 0;
 
       ffmpegCommand
-        .on('start', () => {
+        .on('start', (commandLine: string) => {
           console.log('FFmpeg started (low-memory mode)');
+          console.log('FFmpeg command:', commandLine);
+          console.log('Filter complex:', filterComplex);
         })
         .on('progress', (progress) => {
           const percent = Math.round(progress.percent || 0);
@@ -647,11 +682,32 @@ export async function concatenateVideos(
           releaseGlobalLock();
           removeFileLock(outputPath);
 
-          console.error('FFmpeg error:', err.message);
+          const errorMsg = err.message || String(err);
+          console.error('FFmpeg error:', errorMsg);
+          
+          // Выводим дополнительную информацию об ошибке
+          if (errorMsg.includes('exited with code')) {
+            const codeMatch = errorMsg.match(/exited with code (\d+)/);
+            if (codeMatch) {
+              const exitCode = codeMatch[1];
+              console.error(`FFmpeg exit code: ${exitCode}`);
+              
+              if (exitCode === '234' || exitCode === '1') {
+                console.error('⚠️ Possible causes:');
+                console.error('  - Missing audio streams in input videos');
+                console.error('  - Incompatible video formats');
+                console.error('  - Insufficient memory/resources');
+              }
+            }
+          }
 
-          if (err.message.includes('SIGKILL') || err.message.includes('killed')) {
+          if (errorMsg.includes('SIGKILL') || errorMsg.includes('killed')) {
             console.error('⚠️ FFmpeg killed by system - OUT OF MEMORY');
             console.error('Consider upgrading server RAM or using simpler video processing');
+          }
+
+          if (errorMsg.includes('No such file') || errorMsg.includes('not found')) {
+            console.error('⚠️ Input file not found or inaccessible');
           }
 
           // Проверяем может файл всё же создался
