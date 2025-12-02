@@ -60,6 +60,11 @@ export async function GET(request: NextRequest) {
     const introDb = await getUniversalVideo('intro');
     const outroDb = await getUniversalVideo('outro');
 
+    console.log('=== Check Status Debug ===');
+    console.log('introReady:', introReady, 'outroReady:', outroReady);
+    console.log('introDb:', introDb);
+    console.log('outroDb:', outroDb);
+
     // Проверяем все задачи последовательно с задержками (чтобы избежать TOO_MANY_REQUESTS)
     const statusChecks: Promise<void>[] = [];
 

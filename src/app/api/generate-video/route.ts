@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     // Проверяем есть ли уже запущенная генерация универсальных видео
     let introDb = await getUniversalVideo('intro');
     let outroDb = await getUniversalVideo('outro');
-    
+
     console.log('=== Universal Videos DB Status ===');
     console.log('introDb:', introDb);
     console.log('outroDb:', outroDb);
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       const updatedAt = new Date(dateStr).getTime();
       const timePassed = now - updatedAt;
       console.log(`Intro generation age: ${Math.round(timePassed / 60000)} minutes`);
-      
+
       if (timePassed > TIMEOUT_MS) {
         console.log('Intro generation stuck, resetting to failed...');
         await updateUniversalVideoStatus('intro', 'failed');
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       const updatedAt = new Date(dateStr).getTime();
       const timePassed = now - updatedAt;
       console.log(`Outro generation age: ${Math.round(timePassed / 60000)} minutes`);
-      
+
       if (timePassed > TIMEOUT_MS) {
         console.log('Outro generation stuck, resetting to failed...');
         await updateUniversalVideoStatus('outro', 'failed');
@@ -128,8 +128,16 @@ export async function POST(request: NextRequest) {
 
     // Если нет intro файла и нет активной генерации - генерируем
     const shouldGenerateIntro = !universalVideos.intro && (!introDb || introDb.status === 'failed');
-    console.log('Should generate intro?', shouldGenerateIntro, '(file exists:', universalVideos.intro, ', db status:', introDb?.status, ')');
-    
+    console.log(
+      'Should generate intro?',
+      shouldGenerateIntro,
+      '(file exists:',
+      universalVideos.intro,
+      ', db status:',
+      introDb?.status,
+      ')'
+    );
+
     if (shouldGenerateIntro) {
       console.log('Intro video not found, will generate...');
       generateTasks.push(
@@ -149,8 +157,16 @@ export async function POST(request: NextRequest) {
 
     // Если нет outro файла и нет активной генерации - генерируем
     const shouldGenerateOutro = !universalVideos.outro && (!outroDb || outroDb.status === 'failed');
-    console.log('Should generate outro?', shouldGenerateOutro, '(file exists:', universalVideos.outro, ', db status:', outroDb?.status, ')');
-    
+    console.log(
+      'Should generate outro?',
+      shouldGenerateOutro,
+      '(file exists:',
+      universalVideos.outro,
+      ', db status:',
+      outroDb?.status,
+      ')'
+    );
+
     if (shouldGenerateOutro) {
       console.log('Outro video not found, will generate...');
       generateTasks.push(
