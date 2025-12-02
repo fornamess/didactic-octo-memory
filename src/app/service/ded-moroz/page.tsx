@@ -50,6 +50,7 @@ export default function DedMorozServicePage() {
 
   const [formData, setFormData] = useState({
     childName: '',
+    childAge: '' as string | number,
     photo1: null as File | null,
     photo1Preview: '',
     photo1Comment: '',
@@ -134,6 +135,10 @@ export default function DedMorozServicePage() {
       setError('Введите имя ребёнка');
       return;
     }
+    if (formData.childAge && (Number(formData.childAge) < 1 || Number(formData.childAge) > 18)) {
+      setError('Возраст ребёнка должен быть от 1 до 18 лет');
+      return;
+    }
     if (!formData.photo1 || !formData.photo2) {
       setError('Загрузите оба фото');
       return;
@@ -162,6 +167,7 @@ export default function DedMorozServicePage() {
         },
         body: JSON.stringify({
           childName: formData.childName,
+          childAge: formData.childAge ? Number(formData.childAge) : undefined,
           photo1: photo1Base64,
           photo1Comment: formData.photo1Comment,
           photo2: photo2Base64,
@@ -503,6 +509,27 @@ export default function DedMorozServicePage() {
                         required
                         className="input-magic w-full px-5 py-4 rounded-xl text-[#f0f8ff] text-lg"
                       />
+                    </div>
+
+                    {/* Возраст ребёнка */}
+                    <div>
+                      <label className="block text-[#a8d8ea] mb-2 font-semibold">
+                        Возраст ребёнка <span className="text-[#a8d8ea]/60 text-sm">(необязательно)</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="18"
+                        value={formData.childAge}
+                        onChange={(e) =>
+                          setFormData({ ...formData, childAge: e.target.value || '' })
+                        }
+                        placeholder="Сколько лет ребёнку?"
+                        className="input-magic w-full px-5 py-4 rounded-xl text-[#f0f8ff] text-lg"
+                      />
+                      <p className="text-[#a8d8ea]/60 text-sm mt-1">
+                        Укажите возраст, чтобы Дед Мороз обратился к ребёнку более персонально
+                      </p>
                     </div>
 
                     {/* Фото 1 */}

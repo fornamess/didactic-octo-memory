@@ -1,5 +1,5 @@
 import { getUserFromRequest } from '@/lib/auth';
-import { SERVICE_COST } from '@/lib/config';
+import { BASE_URL, SERVICE_COST, VIDEO_STORAGE_PATH } from '@/lib/config';
 import {
   createOrder,
   ensureDbInitialized,
@@ -16,14 +16,54 @@ import {
   generateOutroVideo,
   generatePersonalPrompt,
 } from '@/lib/video-generator';
+import fs from 'fs';
+import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 
 interface RequestBody {
   childName: string;
+  childAge?: number;
   photo1: string;
   photo1Comment: string;
   photo2: string;
   photo2Comment: string;
+}
+
+// Функция для сохранения base64 изображения на сервер
+async function saveBase64Image(
+  base64Data: string,
+  orderId: number,
+  photoNumber: 1 | 2
+): Promise<string | null> {
+  try {
+    // Проверяем формат base64
+    const base64Match = base64Data.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!base64Match) {
+      console.error('Invalid base64 image format');
+      return null;
+    }
+
+    const [, imageType, base64String] = base64Match;
+    const imageBuffer = Buffer.from(base64String, 'base64');
+
+    // Создаём директорию для изображений
+    const imagesDir = path.join(VIDEO_STORAGE_PATH, 'images');
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+
+    // Сохраняем изображение
+    const fileName = `photo${photoNumber}_order${orderId}.${imageType === 'jpeg' ? 'jpg' : imageType}`;
+    const filePath = path.join(imagesDir, fileName);
+    fs.writeFileSync(filePath, imageBuffer);
+
+    // Возвращаем публичный URL
+    const publicUrl = `${BASE_URL}/api/images/${fileName}`;
+    return publicUrl;
+  } catch (error) {
+    console.error('Error saving base64 image:', error);
+    return null;
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -37,12 +77,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body: RequestBody = await request.json();
-    const { childName, photo1, photo1Comment, photo2, photo2Comment } = body;
+    const { childName, childAge, photo1, photo1Comment, photo2, photo2Comment } = body;
 
     // Валидация
     if (!childName || !photo1Comment || !photo2Comment) {
       return NextResponse.json(
         { error: 'Имя ребёнка и комментарии к фото обязательны' },
+        { status: 400 }
+      );
+    }
+
+    // Валидация возраста (если указан)
+    if (childAge !== undefined && (childAge < 1 || childAge > 18)) {
+      return NextResponse.json(
+        { error: 'Возраст ребёнка должен быть от 1 до 18 лет' },
         { status: 400 }
       );
     }
@@ -68,6 +116,24 @@ export async function POST(request: NextRequest) {
       photo2Comment,
       SERVICE_COST
     );
+
+    // Сохраняем изображения на сервер и получаем их URL
+    let photo1Url: string | null = null;
+    let photo2Url: string | null = null;
+
+    if (photo1) {
+      photo1Url = await saveBase64Image(photo1, orderId, 1);
+      if (!photo1Url) {
+        console.warn('Failed to save photo1, continuing without image reference');
+      }
+    }
+
+    if (photo2) {
+      photo2Url = await saveBase64Image(photo2, orderId, 2);
+      if (!photo2Url) {
+        console.warn('Failed to save photo2, continuing without image reference');
+      }
+    }
 
     // Списываем средства (если платно)
     if (SERVICE_COST > 0) {
@@ -154,14 +220,27 @@ export async function POST(request: NextRequest) {
       tasksToGenerate.push({ type: 'outro', taskId: outroDb.task_id });
     }
 
-    // Генерируем персональный блок
-    const personalPrompt = generatePersonalPrompt(childName, photo1Comment, photo2Comment);
-    console.log('Creating personal video task for:', childName);
+    // Генерируем персональный блок с учётом возраста
+    const personalPrompt = generatePersonalPrompt(
+      childName,
+      photo1Comment,
+      photo2Comment,
+      childAge
+    );
+    console.log('Creating personal video task for:', childName, childAge ? `age ${childAge}` : '');
     console.log('Personal prompt:', personalPrompt);
 
+    // Используем первое изображение как референс для генерации видео (если доступно)
+    // Sora API может использовать image_url для генерации видео по референсу
     let personalTaskId: number | undefined;
     generateTasks.push(
-      createVideoTask(personalPrompt, customerId).then((result) => {
+      createVideoTask(personalPrompt, customerId, {
+        imageUrl: photo1Url || undefined, // Используем первое фото как референс
+        resolution: 1080, // Улучшенное качество
+        dimensions: '16:9',
+        duration: 20, // Увеличена длительность для полного текста
+        effectId: 0,
+      }).then((result) => {
         if (result.success && result.taskId) {
           tasksToGenerate.push({ type: 'personal', taskId: result.taskId });
           personalTaskId = result.taskId;
