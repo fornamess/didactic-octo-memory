@@ -14,106 +14,14 @@ import {
   User,
 } from 'lucide-react';
 import Link from 'next/link';
-import { lazy, useEffect, useRef, useState, Suspense } from 'react';
+import { lazy, useEffect, useState, Suspense } from 'react';
+import ExampleVideoPlayer from '@/components/ExampleVideoPlayer';
 
 // Lazy loading для компонентов
 const Snowfall = lazy(() => import('@/components/Snowfall'));
 
-// Компонент для отображения примера видео
-function ExampleVideoPlayer() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [showPlaceholder, setShowPlaceholder] = useState(true);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Загружаем случайное видео при монтировании
-  useEffect(() => {
-    const loadRandomVideo = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/api/videos/example/random');
-        const data = await response.json();
-        if (data.success && data.videoUrl) {
-          setVideoUrl(data.videoUrl);
-        } else {
-          // Fallback на дефолтное видео
-          setVideoUrl('/api/videos/stream/final/final_2.mp4');
-        }
-      } catch (error) {
-        console.error('Error loading random example video:', error);
-        // Fallback на дефолтное видео
-        setVideoUrl('/api/videos/stream/final/final_2.mp4');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadRandomVideo();
-  }, []);
-
-  const handleVideoLoaded = () => {
-    setShowPlaceholder(false);
-    setIsLoading(false);
-  };
-
-  const handleVideoError = () => {
-    setShowPlaceholder(true);
-    setIsLoading(false);
-    // Пробуем загрузить fallback видео
-    if (videoUrl !== '/api/videos/stream/final/final_2.mp4') {
-      setVideoUrl('/api/videos/stream/final/final_2.mp4');
-    }
-  };
-
-  return (
-    <div className="relative aspect-video rounded-2xl overflow-hidden bg-black group">
-      {/* Видео */}
-      {videoUrl && !isLoading && (
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="metadata"
-          onLoadedData={handleVideoLoaded}
-          onError={handleVideoError}
-          style={{ display: showPlaceholder ? 'none' : 'block' }}
-          key={videoUrl} // Ключ для перезагрузки видео при смене URL
-        >
-          <source src={videoUrl} type="video/mp4" />
-          <source src={videoUrl.replace('/api/videos/stream/', '/videos/')} type="video/mp4" />
-        </video>
-      )}
-
-      {/* Заглушка если видео не загрузилось или загружается */}
-      {(showPlaceholder || isLoading) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#1a3a5c] to-[#0c1929]">
-          <div className="text-center">
-            <span className="text-6xl mb-4 block">🎬</span>
-            <p className="text-[#a8d8ea]">Пример готового видео</p>
-            <p className="text-[#a8d8ea]/60 text-sm mt-2">
-              {isLoading ? 'Загрузка...' : 'Персонализированное видео от Деда Мороза'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Градиент поверх видео */}
-      {!showPlaceholder && (
-        <>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
-          <div className="absolute bottom-4 left-4 right-4 pointer-events-none">
-            <p className="text-white text-sm font-semibold drop-shadow-lg">Пример готового видео</p>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 export default function Home() {
+  // Инициализируем пользователя синхронно из localStorage (не блокирует рендеринг)
   const [user, setUser] = useState<{
     id: number;
     email: string;
@@ -133,6 +41,28 @@ export default function Home() {
     }
     return null;
   });
+
+  // Обновляем баланс асинхронно после рендера (не блокирует)
+  useEffect(() => {
+    if (user && typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Загружаем баланс с небольшой задержкой для приоритизации критического контента
+        setTimeout(() => {
+          fetch('/api/user/balance', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.balance !== undefined) {
+                setUser((prev) => (prev ? { ...prev, balance: data.balance } : null));
+              }
+            })
+            .catch(() => {});
+        }, 200);
+      }
+    }
+  }, [user]);
 
   return (
     <main className="min-h-screen relative overflow-hidden">
@@ -224,8 +154,19 @@ export default function Home() {
         >
           <div className="card-festive rounded-3xl p-6 md:p-8 shadow-2xl mb-8">
             <div className="grid md:grid-cols-2 gap-8 items-center">
-              {/* Превью видео */}
-              <ExampleVideoPlayer />
+              {/* Превью видео - загружается асинхронно */}
+              <Suspense
+                fallback={
+                  <div className="relative aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-[#1a3a5c] to-[#0c1929] flex items-center justify-center">
+                    <div className="text-center">
+                      <span className="text-6xl mb-4 block">🎬</span>
+                      <p className="text-[#a8d8ea]">Загрузка...</p>
+                    </div>
+                  </div>
+                }
+              >
+                <ExampleVideoPlayer />
+              </Suspense>
 
               {/* Информация */}
               <div>

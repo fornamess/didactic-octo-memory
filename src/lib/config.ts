@@ -41,6 +41,7 @@ export const BITBANKER_PAYMENT_CURRENCIES = [
 export type BitbankerCurrency = (typeof BITBANKER_PAYMENT_CURRENCIES)[number];
 
 // === URL приложения ===
+// NEXT_PUBLIC_BASE_URL доступен и на сервере, и на клиенте в Next.js
 export const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
 // === Поддержка ===

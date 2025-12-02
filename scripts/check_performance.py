@@ -41,14 +41,14 @@ class PerformanceChecker:
         try:
             start_time = time.time()
             response = self.session.get(url, timeout=self.timeout, allow_redirects=True, stream=True)
-            
+
             # Измеряем TTFB (Time To First Byte)
             ttfb = None
             if measure_ttfb:
                 ttfb = time.time() - start_time
                 # Читаем весь контент
                 response.content
-            
+
             load_time = time.time() - start_time
             return True, response, load_time, ttfb
         except requests.exceptions.RequestException as e:
@@ -269,7 +269,7 @@ class PerformanceChecker:
             'fonts': [],
             'issues': []
         }
-        
+
         # CSS файлы
         css_links = soup.find_all('link', attrs={'rel': 'stylesheet'})
         for link in css_links:
@@ -277,7 +277,7 @@ class PerformanceChecker:
             if href:
                 full_url = urljoin(base_url, href)
                 resources['css'].append(full_url)
-        
+
         # JS файлы
         js_scripts = soup.find_all('script', src=True)
         for script in js_scripts:
@@ -285,7 +285,7 @@ class PerformanceChecker:
             if src:
                 full_url = urljoin(base_url, src)
                 resources['js'].append(full_url)
-        
+
         # Изображения
         images = soup.find_all('img', src=True)
         for img in images:
@@ -293,13 +293,13 @@ class PerformanceChecker:
             if src and not src.startswith('data:'):
                 full_url = urljoin(base_url, src)
                 resources['images'].append(full_url)
-        
+
         # Проверяем размеры критических ресурсов
         if len(resources['css']) > 5:
             resources['issues'].append(f'Много CSS файлов ({len(resources["css"])}) - рассмотрите объединение')
         if len(resources['js']) > 10:
             resources['issues'].append(f'Много JS файлов ({len(resources["js"])}) - рассмотрите code splitting')
-        
+
         return resources
 
     def check_api_endpoints(self, endpoints: List[str]) -> Dict:
@@ -333,10 +333,14 @@ class PerformanceChecker:
         """Проверяет sitemap.xml"""
         sitemap_url = urljoin(self.base_url, '/sitemap.xml')
         print(f"\n{Colors.CYAN}🗺 Проверка sitemap.xml:{Colors.RESET}")
+        print(f"  URL: {sitemap_url}")
 
         success, response, load_time, _ = self.check_url(sitemap_url)
 
         if success and response:
+            print(f"  Статус: {response.status_code}")
+            print(f"  Content-Type: {response.headers.get('Content-Type', 'не указан')}")
+
             if response.status_code == 200:
                 print(f"{Colors.GREEN}✓ Sitemap доступен ({load_time:.3f}s){Colors.RESET}")
                 try:
@@ -346,6 +350,7 @@ class PerformanceChecker:
                     print(f"  Найдено URL: {len(urls)}")
                     if urls:
                         # Показываем первые несколько URL
+                        print(f"  Примеры URL:")
                         for i, url_tag in enumerate(urls[:3]):
                             loc = url_tag.find('loc')
                             if loc:
@@ -357,34 +362,112 @@ class PerformanceChecker:
                     }
                 except Exception as e:
                     print(f"{Colors.YELLOW}⚠ Ошибка парсинга sitemap: {e}{Colors.RESET}")
-                    print(f"  Ответ сервера: {response.text[:200]}...")
+                    print(f"  Первые 300 символов ответа:")
+                    print(f"  {response.text[:300]}...")
+                    print(f"\n  {Colors.YELLOW}💡 Убедитесь, что файл src/app/sitemap.ts экспортирует функцию sitemap(){Colors.RESET}")
                     return {'status': 'parse_error', 'error': str(e)}
+            elif response.status_code == 404:
+                print(f"{Colors.RED}✗ Sitemap не найден (404){Colors.RESET}")
+                print(f"  {Colors.YELLOW}💡 Проверьте:{Colors.RESET}")
+                print(f"    1. Файл src/app/sitemap.ts существует")
+                print(f"    2. Сервер перезапущен после создания файла")
+                print(f"    3. Next.js версия поддерживает MetadataRoute.Sitemap")
+                return {'status': 'not_found', 'status_code': 404}
             else:
                 print(f"{Colors.YELLOW}⚠ Sitemap вернул статус {response.status_code}{Colors.RESET}")
+                print(f"  Ответ: {response.text[:200]}...")
                 return {'status': 'error', 'status_code': response.status_code}
         else:
-            print(f"{Colors.RED}✗ Sitemap недоступен (проверьте, что sitemap.ts создаёт правильный маршрут){Colors.RESET}")
+            print(f"{Colors.RED}✗ Sitemap недоступен{Colors.RESET}")
+            print(f"  {Colors.YELLOW}💡 Проверьте подключение к серверу{Colors.RESET}")
             return {'status': 'error'}
 
     def check_robots(self) -> Dict:
         """Проверяет robots.txt"""
         robots_url = urljoin(self.base_url, '/robots.txt')
         print(f"\n{Colors.CYAN}🤖 Проверка robots.txt:{Colors.RESET}")
+        print(f"  URL: {robots_url}")
 
         success, response, load_time, _ = self.check_url(robots_url)
 
-        if success and response and response.status_code == 200:
-            print(f"{Colors.GREEN}✓ Robots.txt доступен ({load_time:.3f}s){Colors.RESET}")
-            print(f"  Содержимое:\n{response.text[:200]}...")
-            return {
-                'status': 'ok',
-                'load_time': round(load_time, 3)
-            }
+        if success and response:
+            print(f"  Статус: {response.status_code}")
+            print(f"  Content-Type: {response.headers.get('Content-Type', 'не указан')}")
+
+            if response.status_code == 200:
+                print(f"{Colors.GREEN}✓ Robots.txt доступен ({load_time:.3f}s){Colors.RESET}")
+                print(f"  Содержимое:")
+                lines = response.text.split('\n')[:10]  # Первые 10 строк
+                for line in lines:
+                    if line.strip():
+                        print(f"    {line}")
+                if 'sitemap' in response.text.lower():
+                    print(f"  {Colors.GREEN}✓ Ссылка на sitemap найдена{Colors.RESET}")
+                else:
+                    print(f"  {Colors.YELLOW}⚠ Ссылка на sitemap не найдена{Colors.RESET}")
+                return {
+                    'status': 'ok',
+                    'load_time': round(load_time, 3),
+                    'has_sitemap': 'sitemap' in response.text.lower()
+                }
+            elif response.status_code == 404:
+                print(f"{Colors.RED}✗ Robots.txt не найден (404){Colors.RESET}")
+                print(f"  {Colors.YELLOW}💡 Проверьте:{Colors.RESET}")
+                print(f"    1. Файл src/app/robots.ts существует")
+                print(f"    2. Сервер перезапущен после создания файла")
+                print(f"    3. Next.js версия поддерживает MetadataRoute.Robots")
+                return {'status': 'not_found', 'status_code': 404}
+            else:
+                print(f"{Colors.YELLOW}⚠ Robots.txt вернул статус {response.status_code}{Colors.RESET}")
+                return {'status': 'error', 'status_code': response.status_code}
         else:
-            print(f"{Colors.YELLOW}⚠ Robots.txt недоступен или не найден{Colors.RESET}")
+            print(f"{Colors.YELLOW}⚠ Robots.txt недоступен{Colors.RESET}")
+            print(f"  {Colors.YELLOW}💡 Проверьте подключение к серверу{Colors.RESET}")
             return {'status': 'not_found'}
 
-    def generate_report(self, pages: List[str], api_endpoints: Optional[List[str]] = None) -> Dict:
+    def check_cold_start(self, url: str, iterations: int = 3) -> Dict:
+        """Проверяет холодный старт - делает несколько запросов для выявления первого медленного"""
+        print(f"\n{Colors.CYAN}❄ Проверка холодного старта (3 запроса):{Colors.RESET}")
+        times = []
+
+        for i in range(iterations):
+            print(f"  Запрос {i+1}/{iterations}...", end=' ', flush=True)
+            success, response, load_time, ttfb = self.check_url(url, measure_ttfb=True)
+            if success and response:
+                times.append({
+                    'iteration': i + 1,
+                    'load_time': round(load_time, 3),
+                    'ttfb': round(ttfb, 3) if ttfb else None
+                })
+                status_color = Colors.GREEN if load_time < 2.0 else Colors.YELLOW if load_time < 5.0 else Colors.RED
+                print(f"{status_color}{load_time:.3f}s{Colors.RESET}")
+                time.sleep(0.5)  # Небольшая пауза между запросами
+            else:
+                print(f"{Colors.RED}Ошибка{Colors.RESET}")
+
+        if times:
+            first_time = times[0]['load_time']
+            avg_time = sum(t['load_time'] for t in times[1:]) / (len(times) - 1) if len(times) > 1 else first_time
+            improvement = ((first_time - avg_time) / first_time * 100) if first_time > 0 else 0
+
+            print(f"\n  Первый запрос: {first_time:.3f}s")
+            if len(times) > 1:
+                print(f"  Среднее остальных: {avg_time:.3f}s")
+                if improvement > 20:
+                    print(f"  {Colors.GREEN}✓ Улучшение на {improvement:.1f}% после прогрева{Colors.RESET}")
+                elif improvement > 0:
+                    print(f"  {Colors.YELLOW}⚠ Небольшое улучшение на {improvement:.1f}%{Colors.RESET}")
+
+            return {
+                'times': times,
+                'first_load_time': first_time,
+                'average_after_first': avg_time,
+                'improvement_percent': round(improvement, 1)
+            }
+
+        return {'error': 'Не удалось выполнить запросы'}
+
+    def generate_report(self, pages: List[str], api_endpoints: Optional[List[str]] = None, check_cold_start: bool = False) -> Dict:
         """Генерирует полный отчёт"""
         print(f"\n{Colors.BOLD}{Colors.CYAN}{'='*60}")
         print(f"Проверка производительности сайта: {self.base_url}")
@@ -399,6 +482,12 @@ class PerformanceChecker:
             'robots': {},
             'summary': {}
         }
+
+        # Проверка холодного старта для главной страницы
+        if check_cold_start and pages:
+            main_page = pages[0] if pages[0] == '/' else '/'
+            main_url = urljoin(self.base_url, main_page)
+            report['cold_start'] = self.check_cold_start(main_url)
 
         # Проверка страниц
         for page in pages:
@@ -418,14 +507,24 @@ class PerformanceChecker:
         # Сводка
         total_pages = len(report['pages'])
         ok_pages = sum(1 for p in report['pages'].values() if p.get('status') == 'ok')
-        avg_load_time = sum(p.get('load_time', 0) for p in report['pages'].values()) / total_pages if total_pages > 0 else 0
+        pages_with_load_time = [p for p in report['pages'].values() if p.get('load_time')]
+        avg_load_time = sum(p.get('load_time', 0) for p in pages_with_load_time) / len(pages_with_load_time) if pages_with_load_time else 0
+        max_load_time = max((p.get('load_time', 0) for p in pages_with_load_time), default=0)
+        min_load_time = min((p.get('load_time', 0) for p in pages_with_load_time), default=0)
+
+        # Средний TTFB
+        pages_with_ttfb = [p for p in report['pages'].values() if p.get('ttfb')]
+        avg_ttfb = sum(p.get('ttfb', 0) for p in pages_with_ttfb) / len(pages_with_ttfb) if pages_with_ttfb else 0
 
         report['summary'] = {
             'total_pages': total_pages,
             'ok_pages': ok_pages,
             'error_pages': total_pages - ok_pages,
             'average_load_time': round(avg_load_time, 3),
-            'status': 'ok' if ok_pages == total_pages else 'warning'
+            'min_load_time': round(min_load_time, 3),
+            'max_load_time': round(max_load_time, 3),
+            'average_ttfb': round(avg_ttfb, 3) if avg_ttfb > 0 else None,
+            'status': 'ok' if ok_pages == total_pages and avg_load_time < 2.0 else 'warning'
         }
 
         # Вывод сводки
@@ -435,6 +534,24 @@ class PerformanceChecker:
         print(f"  Успешно: {Colors.GREEN}{ok_pages}{Colors.RESET}")
         print(f"  Ошибок: {Colors.RED}{total_pages - ok_pages}{Colors.RESET}")
         print(f"  Среднее время загрузки: {avg_load_time:.3f}s")
+        if avg_ttfb > 0:
+            print(f"  Средний TTFB: {avg_ttfb:.3f}s")
+        print(f"  Мин/Макс время: {min_load_time:.3f}s / {max_load_time:.3f}s")
+
+        # Рекомендации
+        if max_load_time > 5.0:
+            print(f"\n{Colors.YELLOW}💡 Рекомендации:{Colors.RESET}")
+            print(f"  - Главная страница загружается медленно ({max_load_time:.3f}s)")
+            print(f"  - Возможно холодный старт сервера или медленный ответ")
+            print(f"  - Рассмотрите использование CDN для статических ресурсов")
+            print(f"  - Проверьте оптимизацию изображений и видео")
+
+        if report['sitemap'].get('status') != 'ok':
+            print(f"\n{Colors.YELLOW}⚠ Sitemap недоступен - проверьте файл src/app/sitemap.ts{Colors.RESET}")
+
+        if report['robots'].get('status') != 'ok':
+            print(f"\n{Colors.YELLOW}⚠ Robots.txt недоступен - проверьте файл src/app/robots.ts{Colors.RESET}")
+
         print(f"{'='*60}\n")
 
         return report
@@ -451,11 +568,12 @@ def main():
                        help='API endpoints для проверки')
     parser.add_argument('--output', type=str, help='Файл для сохранения JSON отчёта')
     parser.add_argument('--timeout', type=int, default=30, help='Таймаут запросов в секундах')
+    parser.add_argument('--cold-start', action='store_true', help='Проверить холодный старт (делает 3 запроса к главной странице)')
 
     args = parser.parse_args()
 
     checker = PerformanceChecker(args.url, timeout=args.timeout)
-    report = checker.generate_report(args.pages, args.api)
+    report = checker.generate_report(args.pages, args.api, check_cold_start=args.cold_start)
 
     # Сохранение отчёта
     if args.output:

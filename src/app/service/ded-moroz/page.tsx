@@ -60,34 +60,40 @@ export default function DedMorozServicePage() {
   });
 
   useEffect(() => {
+    // Инициализируем пользователя синхронно из localStorage
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     if (token && userData) {
       setUser(JSON.parse(userData));
-      // Обновляем баланс с сервера
-      fetch('/api/user/balance', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.balance !== undefined) {
-            setUser((prev) => (prev ? { ...prev, balance: data.balance } : null));
-          }
+
+      // Обновляем баланс асинхронно с задержкой (не блокирует рендеринг)
+      setTimeout(() => {
+        fetch('/api/user/balance', {
+          headers: { Authorization: `Bearer ${token}` },
         })
-        .catch(() => {});
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.balance !== undefined) {
+              setUser((prev) => (prev ? { ...prev, balance: data.balance } : null));
+            }
+          })
+          .catch(() => {});
+      }, 100);
     }
 
-    // Загружаем случайное примерное видео
-    fetch('/api/videos/example/random')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.videoUrl) {
-          setExampleVideoUrl(data.videoUrl);
-        }
-      })
-      .catch(() => {
-        // В случае ошибки используем дефолтное видео
-      });
+    // Загружаем случайное примерное видео асинхронно с задержкой
+    setTimeout(() => {
+      fetch('/api/videos/example/random')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.videoUrl) {
+            setExampleVideoUrl(data.videoUrl);
+          }
+        })
+        .catch(() => {
+          // В случае ошибки используем дефолтное видео
+        });
+    }, 150);
   }, []);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, photoNum: 1 | 2) => {

@@ -19,8 +19,9 @@ import './globals.css';
 // });
 
 const siteName = 'Видео-поздравления от Деда Мороза';
+// Оптимизированное описание для SEO (до 160 символов)
 const siteDescription =
-  'Создайте волшебное персональное видео-поздравление для вашего ребёнка от настоящего Деда Мороза с помощью искусственного интеллекта Sora 2. Персонализированные новогодние видео с именем ребёнка и вашими фотографиями. Бесплатно!';
+  'Персональное видео-поздравление от Деда Мороза для вашего ребёнка. AI генерация, имя ребёнка, ваши фото. Бесплатно!';
 const siteUrl = BASE_URL;
 
 export const metadata: Metadata = {
@@ -131,6 +132,11 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <head>
+        {/* Preconnect для ускорения загрузки внешних ресурсов */}
+        <link rel="preconnect" href={siteUrl} />
+        <link rel="dns-prefetch" href={siteUrl} />
+
+        {/* Structured Data */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
