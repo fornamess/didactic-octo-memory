@@ -40,11 +40,14 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
+# Удаляем папку videos - она будет создана как симлинк в entrypoint
+RUN rm -rf /app/public/videos
+
 # Копируем entrypoint скрипт
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Создаем директории для БД и видео (будут пересозданы через симлинк)
+# Создаем директории и выдаём права
 RUN mkdir -p /app/public
 RUN chown -R nextjs:nodejs /app
 
