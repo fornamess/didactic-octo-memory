@@ -99,39 +99,54 @@ export async function GET(request: NextRequest) {
         `Intro check: updated ${Math.round(timePassed / 60000)} min ago, status: ${introDb.status}`
       );
 
-      if (timePassed > GENERATION_TIMEOUT_MS) {
-        console.log(
-          `Intro generation timeout (${Math.round(timePassed / 60000)} min), resetting...`
-        );
-        await updateUniversalVideoStatus('intro', 'failed');
-      } else {
-        statusChecks.push(
-          delay(500).then(() =>
-            checkTaskStatus(introDb.task_id).then(async (introStatus) => {
-              console.log('Intro status:', introStatus);
-              // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
-              if (introStatus.error === 'TOO_MANY_REQUESTS') {
-                console.log('Intro: TOO_MANY_REQUESTS, skipping check');
-                return;
+      // ВСЕГДА проверяем реальный статус задачи через API
+      statusChecks.push(
+        delay(500).then(() =>
+          checkTaskStatus(introDb.task_id).then(async (introStatus) => {
+            console.log('Intro status from API:', introStatus);
+            
+            // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
+            if (introStatus.error === 'TOO_MANY_REQUESTS') {
+              console.log('Intro: TOO_MANY_REQUESTS, skipping check');
+              return;
+            }
+            
+            // Если задача завершена - скачиваем
+            if (introStatus.status === 'completed' && introStatus.videoUrl) {
+              console.log('Intro video completed, downloading...');
+              const saved = await saveIntroVideo(introStatus.videoUrl);
+              if (saved) {
+                introReady = true;
+                await updateUniversalVideoStatus('intro', 'completed', introStatus.videoUrl);
+                console.log('Intro video saved successfully');
               }
-              if (introStatus.status === 'completed' && introStatus.videoUrl) {
-                console.log('Intro video completed, downloading...');
-                const saved = await saveIntroVideo(introStatus.videoUrl);
-                if (saved) {
-                  introReady = true;
-                  await updateUniversalVideoStatus('intro', 'completed', introStatus.videoUrl);
-                  console.log('Intro video saved successfully');
-                }
-              } else if (
-                introStatus.status === 'rejected with error' ||
-                introStatus.status === 'rejected due to timeout'
-              ) {
-                await updateUniversalVideoStatus('intro', 'failed');
-              }
-            })
-          )
-        );
-      }
+            } 
+            // Если задача отклонена - помечаем как failed
+            else if (
+              introStatus.status === 'rejected with error' ||
+              introStatus.status === 'rejected due to timeout'
+            ) {
+              console.log('Intro video rejected, marking as failed');
+              await updateUniversalVideoStatus('intro', 'failed');
+            }
+            // Если задача всё ещё в процессе, но прошло много времени - проверяем таймаут
+            else if (
+              (introStatus.status === 'in queue' || introStatus.status === 'in progress' || introStatus.status === 'processing') &&
+              timePassed > GENERATION_TIMEOUT_MS
+            ) {
+              console.log(
+                `Intro still processing after ${Math.round(timePassed / 60000)} min, marking as failed`
+              );
+              await updateUniversalVideoStatus('intro', 'failed');
+            }
+            // Если статус неизвестен и прошло много времени - сбрасываем
+            else if (!introStatus.success && timePassed > GENERATION_TIMEOUT_MS) {
+              console.log('Intro status check failed, marking as failed');
+              await updateUniversalVideoStatus('intro', 'failed');
+            }
+          })
+        )
+      );
     }
 
     // Если outro файла нет и нет активной генерации - автоматически запускаем
@@ -159,39 +174,54 @@ export async function GET(request: NextRequest) {
         `Outro check: updated ${Math.round(timePassed / 60000)} min ago, status: ${outroDb.status}`
       );
 
-      if (timePassed > GENERATION_TIMEOUT_MS) {
-        console.log(
-          `Outro generation timeout (${Math.round(timePassed / 60000)} min), resetting...`
-        );
-        await updateUniversalVideoStatus('outro', 'failed');
-      } else {
-        statusChecks.push(
-          delay(1000).then(() =>
-            checkTaskStatus(outroDb.task_id).then(async (outroStatus) => {
-              console.log('Outro status:', outroStatus);
-              // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
-              if (outroStatus.error === 'TOO_MANY_REQUESTS') {
-                console.log('Outro: TOO_MANY_REQUESTS, skipping check');
-                return;
+      // ВСЕГДА проверяем реальный статус задачи через API
+      statusChecks.push(
+        delay(1000).then(() =>
+          checkTaskStatus(outroDb.task_id).then(async (outroStatus) => {
+            console.log('Outro status from API:', outroStatus);
+            
+            // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
+            if (outroStatus.error === 'TOO_MANY_REQUESTS') {
+              console.log('Outro: TOO_MANY_REQUESTS, skipping check');
+              return;
+            }
+            
+            // Если задача завершена - скачиваем
+            if (outroStatus.status === 'completed' && outroStatus.videoUrl) {
+              console.log('Outro video completed, downloading...');
+              const saved = await saveOutroVideo(outroStatus.videoUrl);
+              if (saved) {
+                outroReady = true;
+                await updateUniversalVideoStatus('outro', 'completed', outroStatus.videoUrl);
+                console.log('Outro video saved successfully');
               }
-              if (outroStatus.status === 'completed' && outroStatus.videoUrl) {
-                console.log('Outro video completed, downloading...');
-                const saved = await saveOutroVideo(outroStatus.videoUrl);
-                if (saved) {
-                  outroReady = true;
-                  await updateUniversalVideoStatus('outro', 'completed', outroStatus.videoUrl);
-                  console.log('Outro video saved successfully');
-                }
-              } else if (
-                outroStatus.status === 'rejected with error' ||
-                outroStatus.status === 'rejected due to timeout'
-              ) {
-                await updateUniversalVideoStatus('outro', 'failed');
-              }
-            })
-          )
-        );
-      }
+            } 
+            // Если задача отклонена - помечаем как failed
+            else if (
+              outroStatus.status === 'rejected with error' ||
+              outroStatus.status === 'rejected due to timeout'
+            ) {
+              console.log('Outro video rejected, marking as failed');
+              await updateUniversalVideoStatus('outro', 'failed');
+            }
+            // Если задача всё ещё в процессе, но прошло много времени - проверяем таймаут
+            else if (
+              (outroStatus.status === 'in queue' || outroStatus.status === 'in progress' || outroStatus.status === 'processing') &&
+              timePassed > GENERATION_TIMEOUT_MS
+            ) {
+              console.log(
+                `Outro still processing after ${Math.round(timePassed / 60000)} min, marking as failed`
+              );
+              await updateUniversalVideoStatus('outro', 'failed');
+            }
+            // Если статус неизвестен и прошло много времени - сбрасываем
+            else if (!outroStatus.success && timePassed > GENERATION_TIMEOUT_MS) {
+              console.log('Outro status check failed, marking as failed');
+              await updateUniversalVideoStatus('outro', 'failed');
+            }
+          })
+        )
+      );
     }
 
     // Ждём проверки универсальных видео

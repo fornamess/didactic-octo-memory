@@ -1,5 +1,5 @@
 import { getUserFromRequest } from '@/lib/auth';
-import { GENERATION_TIMEOUT_MINUTES, SERVICE_COST } from '@/lib/config';
+import { SERVICE_COST } from '@/lib/config';
 import {
   createOrder,
   ensureDbInitialized,
@@ -7,7 +7,6 @@ import {
   getUserBalance,
   setUniversalVideo,
   updateOrderTaskId,
-  updateUniversalVideoStatus,
   updateUserBalance,
 } from '@/lib/db';
 import {
@@ -88,37 +87,8 @@ export async function POST(request: NextRequest) {
     console.log('introDb:', introDb);
     console.log('outroDb:', outroDb);
 
-    // Таймаут для застрявших генераций
-    const TIMEOUT_MS = GENERATION_TIMEOUT_MINUTES * 60 * 1000;
-    const now = Date.now();
-
-    // Проверяем, не застряла ли генерация intro
-    if (introDb && introDb.status === 'processing') {
-      const dateStr = (introDb.updated_at || introDb.created_at).replace(' ', 'T') + 'Z';
-      const updatedAt = new Date(dateStr).getTime();
-      const timePassed = now - updatedAt;
-      console.log(`Intro generation age: ${Math.round(timePassed / 60000)} minutes`);
-
-      if (timePassed > TIMEOUT_MS) {
-        console.log('Intro generation stuck, resetting to failed...');
-        await updateUniversalVideoStatus('intro', 'failed');
-        introDb = { ...introDb, status: 'failed' };
-      }
-    }
-
-    // Проверяем, не застряла ли генерация outro
-    if (outroDb && outroDb.status === 'processing') {
-      const dateStr = (outroDb.updated_at || outroDb.created_at).replace(' ', 'T') + 'Z';
-      const updatedAt = new Date(dateStr).getTime();
-      const timePassed = now - updatedAt;
-      console.log(`Outro generation age: ${Math.round(timePassed / 60000)} minutes`);
-
-      if (timePassed > TIMEOUT_MS) {
-        console.log('Outro generation stuck, resetting to failed...');
-        await updateUniversalVideoStatus('outro', 'failed');
-        outroDb = { ...outroDb, status: 'failed' };
-      }
-    }
+    // Проверка таймаута и сброс застрявших генераций происходит в check-status
+    // Здесь мы просто проверяем статус из БД
 
     const customerId = `web_user_${user.id}`;
     const tasksToGenerate: { type: string; taskId?: number }[] = [];
