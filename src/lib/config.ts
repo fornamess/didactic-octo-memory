@@ -25,7 +25,20 @@ export const ADMIN_EMAILS: string[] = (process.env.ADMIN_EMAILS || 'system@gmail
 // === Платёжная система Bitbanker ===
 export const BITBANKER_API_KEY = process.env.BITBANKER_API_KEY || '';
 export const BITBANKER_SECRET = process.env.BITBANKER_SECRET || '';
-export const BITBANKER_API_URL = 'https://api.bitbanker.org/v1';
+export const BITBANKER_API_URL = 'https://api.aws.bitbanker.org/latest/api/v1';
+
+// Доступные криптовалюты для оплаты
+export const BITBANKER_PAYMENT_CURRENCIES = [
+  'BTC',
+  'ETH',
+  'USDT',
+  'USDC',
+  'TRX',
+  'ATOM',
+  'AVAX',
+  'LTC',
+] as const;
+export type BitbankerCurrency = (typeof BITBANKER_PAYMENT_CURRENCIES)[number];
 
 // === URL приложения ===
 export const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';

@@ -282,6 +282,41 @@ export async function concatenateVideos(
 ): Promise<boolean> {
   return new Promise((resolve) => {
     try {
+      // Проверяем существование всех входных файлов
+      console.log('=== Concatenation Debug ===');
+      console.log('Intro path:', introPath, 'exists:', fs.existsSync(introPath));
+      console.log('Personal path:', personalPath, 'exists:', fs.existsSync(personalPath));
+      console.log('Outro path:', outroPath, 'exists:', fs.existsSync(outroPath));
+      console.log('Output path:', outputPath);
+
+      if (!fs.existsSync(introPath)) {
+        console.error('Intro video not found:', introPath);
+        resolve(false);
+        return;
+      }
+      if (!fs.existsSync(personalPath)) {
+        console.error('Personal video not found:', personalPath);
+        resolve(false);
+        return;
+      }
+      if (!fs.existsSync(outroPath)) {
+        console.error('Outro video not found:', outroPath);
+        resolve(false);
+        return;
+      }
+
+      // Проверяем размеры файлов
+      const introSize = fs.statSync(introPath).size;
+      const personalSize = fs.statSync(personalPath).size;
+      const outroSize = fs.statSync(outroPath).size;
+      console.log('File sizes - Intro:', introSize, 'Personal:', personalSize, 'Outro:', outroSize);
+
+      // Создаём директорию для выходного файла
+      const outputDir = path.dirname(outputPath);
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+
       // Динамический импорт fluent-ffmpeg
       import('fluent-ffmpeg')
         .then((ffmpegModule) => {
@@ -289,13 +324,15 @@ export async function concatenateVideos(
 
           // Устанавливаем путь к ffmpeg
           ffmpeg.setFfmpegPath(FFMPEG_PATH);
+          console.log('FFmpeg path:', FFMPEG_PATH);
 
           // Создаём временный файл со списком видео для конкатенации
-          const listPath = path.join(path.dirname(outputPath), 'concat_list.txt');
+          const listPath = path.join(path.dirname(outputPath), `concat_list_${Date.now()}.txt`);
           const listContent = `file '${introPath.replace(/\\/g, '/')}'
 file '${personalPath.replace(/\\/g, '/')}'
 file '${outroPath.replace(/\\/g, '/')}'`;
 
+          console.log('Concat list content:\n', listContent);
           fs.writeFileSync(listPath, listContent);
 
           ffmpeg()
@@ -303,19 +340,26 @@ file '${outroPath.replace(/\\/g, '/')}'`;
             .inputOptions(['-f', 'concat', '-safe', '0'])
             .outputOptions([
               '-c:v',
-              'libx264', // Перекодирование видео в H.264
+              'libx264',
               '-c:a',
-              'aac', // Перекодирование аудио в AAC
+              'aac',
               '-preset',
-              'medium', // Баланс скорости и качества
+              'fast',
               '-crf',
-              '23', // Качество видео (18-28, меньше = лучше)
+              '23',
               '-movflags',
-              '+faststart', // Быстрый старт для веб-воспроизведения
+              '+faststart',
+              '-y', // Перезаписывать выходной файл
             ])
             .output(outputPath)
             .on('start', (commandLine) => {
-              console.log('FFmpeg command:', commandLine);
+              console.log('FFmpeg started with command:', commandLine);
+            })
+            .on('stderr', (stderrLine) => {
+              // Логируем stderr для отладки
+              if (stderrLine.includes('error') || stderrLine.includes('Error')) {
+                console.error('FFmpeg stderr:', stderrLine);
+              }
             })
             .on('progress', (progress) => {
               if (progress.percent) {
@@ -324,12 +368,24 @@ file '${outroPath.replace(/\\/g, '/')}'`;
             })
             .on('end', () => {
               // Удаляем временный файл
-              fs.unlinkSync(listPath);
-              console.log('Video concatenation completed:', outputPath);
-              resolve(true);
+              if (fs.existsSync(listPath)) {
+                fs.unlinkSync(listPath);
+              }
+
+              // Проверяем что выходной файл создан
+              if (fs.existsSync(outputPath)) {
+                const outputSize = fs.statSync(outputPath).size;
+                console.log('Video concatenation completed:', outputPath, 'size:', outputSize);
+                resolve(true);
+              } else {
+                console.error('Output file was not created:', outputPath);
+                resolve(false);
+              }
             })
-            .on('error', (err: Error) => {
-              console.error('FFmpeg error:', err);
+            .on('error', (err: Error, stdout, stderr) => {
+              console.error('FFmpeg error:', err.message);
+              console.error('FFmpeg stdout:', stdout);
+              console.error('FFmpeg stderr:', stderr);
               // Удаляем временный файл при ошибке
               if (fs.existsSync(listPath)) {
                 fs.unlinkSync(listPath);

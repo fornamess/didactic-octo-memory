@@ -71,6 +71,7 @@ export default function ProfilePage() {
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupAmount, setTopupAmount] = useState(10);
   const [topupLoading, setTopupLoading] = useState(false);
+  const [selectedCrypto, setSelectedCrypto] = useState<string[]>(['USDT', 'BTC', 'ETH', 'TRX']);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [supportContacts, setSupportContacts] = useState<SupportContacts>({
     telegram: '@support',
@@ -289,7 +290,7 @@ export default function ProfilePage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ amount: topupAmount }),
+        body: JSON.stringify({ amount: topupAmount, paymentCurrency: selectedCrypto }),
       });
 
       const data = await response.json();
@@ -778,13 +779,43 @@ export default function ProfilePage() {
                 />
               </div>
 
+              <div className="mb-6">
+                <label className="block text-[#a8d8ea] mb-2 font-semibold">Способ оплаты</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {['USDT', 'BTC', 'ETH', 'TRX', 'USDC', 'ATOM', 'AVAX', 'LTC'].map((crypto) => (
+                    <button
+                      key={crypto}
+                      onClick={() => {
+                        if (selectedCrypto.includes(crypto)) {
+                          if (selectedCrypto.length > 1) {
+                            setSelectedCrypto(selectedCrypto.filter((c) => c !== crypto));
+                          }
+                        } else {
+                          setSelectedCrypto([...selectedCrypto, crypto]);
+                        }
+                      }}
+                      className={`py-2 px-2 rounded-lg text-xs font-semibold transition-colors ${
+                        selectedCrypto.includes(crypto)
+                          ? 'bg-[#ffd700] text-black'
+                          : 'glass text-[#a8d8ea] hover:bg-white/10'
+                      }`}
+                    >
+                      {crypto}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[#a8d8ea]/40 text-xs mt-2">
+                  Выберите криптовалюты для оплаты (минимум одна)
+                </p>
+              </div>
+
               <div className="bg-white/5 rounded-xl p-4 mb-6">
                 <div className="flex justify-between items-center">
                   <span className="text-[#a8d8ea]">К оплате</span>
                   <span className="text-2xl font-bold text-[#ffd700]">${topupAmount}</span>
                 </div>
                 <p className="text-[#a8d8ea]/60 text-sm mt-2">
-                  1 Койн = 1 USD. Оплата криптовалютой через Bitbanker.
+                  1 Койн = 1 USD. Оплата: {selectedCrypto.join(', ')}
                 </p>
               </div>
 
