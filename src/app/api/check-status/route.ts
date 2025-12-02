@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     const statusChecks: Promise<void>[] = [];
 
     // Функция для добавления задержки между запросами
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     // customerId для генерации
     const customerId = `web_user_${user.id}`;
@@ -104,13 +104,13 @@ export async function GET(request: NextRequest) {
         delay(500).then(() =>
           checkTaskStatus(introDb.task_id).then(async (introStatus) => {
             console.log('Intro status from API:', introStatus);
-            
+
             // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
             if (introStatus.error === 'TOO_MANY_REQUESTS') {
               console.log('Intro: TOO_MANY_REQUESTS, skipping check');
               return;
             }
-            
+
             // Если задача завершена - скачиваем
             if (introStatus.status === 'completed' && introStatus.videoUrl) {
               console.log('Intro video completed, downloading...');
@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
                 await updateUniversalVideoStatus('intro', 'completed', introStatus.videoUrl);
                 console.log('Intro video saved successfully');
               }
-            } 
+            }
             // Если задача отклонена - помечаем как failed
             else if (
               introStatus.status === 'rejected with error' ||
@@ -131,11 +131,15 @@ export async function GET(request: NextRequest) {
             }
             // Если задача всё ещё в процессе, но прошло много времени - проверяем таймаут
             else if (
-              (introStatus.status === 'in queue' || introStatus.status === 'in progress' || introStatus.status === 'processing') &&
+              (introStatus.status === 'in queue' ||
+                introStatus.status === 'in progress' ||
+                introStatus.status === 'processing') &&
               timePassed > GENERATION_TIMEOUT_MS
             ) {
               console.log(
-                `Intro still processing after ${Math.round(timePassed / 60000)} min, marking as failed`
+                `Intro still processing after ${Math.round(
+                  timePassed / 60000
+                )} min, marking as failed`
               );
               await updateUniversalVideoStatus('intro', 'failed');
             }
@@ -179,13 +183,13 @@ export async function GET(request: NextRequest) {
         delay(1000).then(() =>
           checkTaskStatus(outroDb.task_id).then(async (outroStatus) => {
             console.log('Outro status from API:', outroStatus);
-            
+
             // Игнорируем TOO_MANY_REQUESTS - просто продолжаем ждать
             if (outroStatus.error === 'TOO_MANY_REQUESTS') {
               console.log('Outro: TOO_MANY_REQUESTS, skipping check');
               return;
             }
-            
+
             // Если задача завершена - скачиваем
             if (outroStatus.status === 'completed' && outroStatus.videoUrl) {
               console.log('Outro video completed, downloading...');
@@ -195,7 +199,7 @@ export async function GET(request: NextRequest) {
                 await updateUniversalVideoStatus('outro', 'completed', outroStatus.videoUrl);
                 console.log('Outro video saved successfully');
               }
-            } 
+            }
             // Если задача отклонена - помечаем как failed
             else if (
               outroStatus.status === 'rejected with error' ||
@@ -206,11 +210,15 @@ export async function GET(request: NextRequest) {
             }
             // Если задача всё ещё в процессе, но прошло много времени - проверяем таймаут
             else if (
-              (outroStatus.status === 'in queue' || outroStatus.status === 'in progress' || outroStatus.status === 'processing') &&
+              (outroStatus.status === 'in queue' ||
+                outroStatus.status === 'in progress' ||
+                outroStatus.status === 'processing') &&
               timePassed > GENERATION_TIMEOUT_MS
             ) {
               console.log(
-                `Outro still processing after ${Math.round(timePassed / 60000)} min, marking as failed`
+                `Outro still processing after ${Math.round(
+                  timePassed / 60000
+                )} min, marking as failed`
               );
               await updateUniversalVideoStatus('outro', 'failed');
             }
@@ -292,7 +300,7 @@ export async function GET(request: NextRequest) {
 
           if (concatenated) {
             console.log('Videos concatenated successfully!');
-            const finalVideoUrl = `/videos/final/final_${order.id}.mp4`;
+            const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
             await updateOrderStatus(Number(taskId), 'completed', 'Видео готово', finalVideoUrl);
 
             return NextResponse.json({
@@ -308,7 +316,7 @@ export async function GET(request: NextRequest) {
           } else {
             // Если склейка не удалась, возвращаем просто персональное видео
             console.log('Concatenation failed, using personal video only');
-            const localPersonalUrl = `/videos/personal/personal_${order.id}.mp4`;
+            const localPersonalUrl = `/api/videos/stream/personal/personal_${order.id}.mp4`;
             await updateOrderStatus(
               Number(taskId),
               'completed',
@@ -329,7 +337,7 @@ export async function GET(request: NextRequest) {
           }
         } else {
           // Финальное видео уже существует
-          const finalVideoUrl = `/videos/final/final_${order.id}.mp4`;
+          const finalVideoUrl = `/api/videos/stream/final/final_${order.id}.mp4`;
           return NextResponse.json({
             success: true,
             taskId: Number(taskId),
