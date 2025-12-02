@@ -1,16 +1,18 @@
 import { VIDEO_STORAGE_PATH } from '@/lib/config';
 import fs from 'fs';
-import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
+import path from 'path';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
+    // Ожидаем params (в Next.js 16 это Promise)
+    const resolvedParams = await params;
     // Собираем путь из параметров
-    const filePath = params.path.join('/');
-    
+    const filePath = resolvedParams.path.join('/');
+
     // Безопасность: проверяем что путь не содержит опасные символы
     if (filePath.includes('..') || !filePath.match(/^[a-zA-Z0-9_/-]+\.mp4$/)) {
       console.log('Invalid video path:', filePath);
@@ -19,7 +21,7 @@ export async function GET(
 
     // Полный путь к файлу
     const fullPath = path.join(VIDEO_STORAGE_PATH, filePath);
-    
+
     // Проверяем что файл существует
     if (!fs.existsSync(fullPath)) {
       console.log('Video file not found:', fullPath);
@@ -41,7 +43,7 @@ export async function GET(
 
     // Читаем файл
     const fileBuffer = fs.readFileSync(fullPath);
-    
+
     // Определяем Content-Type
     const ext = path.extname(fullPath).toLowerCase();
     const contentType = ext === '.mp4' ? 'video/mp4' : 'application/octet-stream';
@@ -81,4 +83,3 @@ export async function GET(
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
