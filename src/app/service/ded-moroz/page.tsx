@@ -47,6 +47,7 @@ export default function DedMorozServicePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [exampleVideoUrl, setExampleVideoUrl] = useState<string>('/api/videos/stream/final/final_2.mp4');
 
   const [formData, setFormData] = useState({
     childName: '',
@@ -75,6 +76,18 @@ export default function DedMorozServicePage() {
         })
         .catch(() => {});
     }
+
+    // Загружаем случайное примерное видео
+    fetch('/api/videos/example/random')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.videoUrl) {
+          setExampleVideoUrl(data.videoUrl);
+        }
+      })
+      .catch(() => {
+        // В случае ошибки используем дефолтное видео
+      });
   }, []);
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>, photoNum: 1 | 2) => {
@@ -284,13 +297,10 @@ export default function DedMorozServicePage() {
                 className="w-full h-full object-cover"
                 onEnded={() => setIsPlaying(false)}
                 playsInline
+                key={exampleVideoUrl}
               >
-                <source src="/api/videos/stream/final/final_2.mp4" type="video/mp4" />
-                <source src="/videos/final/final_2.mp4" type="video/mp4" />
-                <source src="/api/videos/stream/final/final_1.mp4" type="video/mp4" />
-                <source src="/videos/final/final_1.mp4" type="video/mp4" />
-                <source src="/api/videos/stream/personal/personal_4.mp4" type="video/mp4" />
-                <source src="/videos/personal/personal_4.mp4" type="video/mp4" />
+                <source src={exampleVideoUrl} type="video/mp4" />
+                <source src={exampleVideoUrl.replace('/api/videos/stream/', '/videos/')} type="video/mp4" />
               </video>
               <button
                 onClick={toggleVideo}

@@ -677,3 +677,26 @@ export async function getUserTransactionsAdmin(userId: number) {
   db.close();
   return transactions;
 }
+
+// Получить все завершенные заказы с финальными видео для примеров
+export async function getCompletedOrdersWithFinalVideos(): Promise<
+  Array<{
+    id: number;
+    video_url: string;
+  }>
+> {
+  const db = await getDb();
+  const orders = await all(
+    db,
+    `SELECT id, video_url
+     FROM orders
+     WHERE status = 'completed'
+       AND video_url IS NOT NULL
+       AND video_url LIKE '/api/videos/stream/final/%'
+     ORDER BY completed_at DESC
+     LIMIT 100`,
+    []
+  );
+  db.close();
+  return orders;
+}
