@@ -426,6 +426,11 @@ export async function checkTaskStatus(taskId: number): Promise<StatusResult> {
 
     const data = await response.json();
 
+    // Логируем полный ответ для отладки отклонений
+    if (!data.success || data.results?.animation_data?.status_description?.includes('rejected')) {
+      console.log(`[CHECK-STATUS] Task ${taskId} API response:`, JSON.stringify(data, null, 2));
+    }
+
     if (!data.success) {
       const result: StatusResult = {
         success: false,
@@ -448,10 +453,35 @@ export async function checkTaskStatus(taskId: number): Promise<StatusResult> {
       return result;
     }
 
+    // Извлекаем информацию об ошибке, если статус отклонен
+    const statusDescription = animationData.status_description || '';
+    const isRejected = statusDescription.includes('rejected');
+
+    // Пытаемся извлечь информацию об ошибке из ответа API
+    let errorMessage: string | undefined;
+    if (isRejected) {
+      // Проверяем разные возможные места, где может быть информация об ошибке
+      errorMessage =
+        animationData.error_message ||
+        animationData.error ||
+        animationData.rejection_reason ||
+        data.message ||
+        'Видео отклонено без указания причины';
+
+      console.error(`❌ Task ${taskId} rejected with status: "${statusDescription}"`);
+      console.error(`   Error details:`, {
+        error_message: animationData.error_message,
+        error: animationData.error,
+        rejection_reason: animationData.rejection_reason,
+        full_animation_data: animationData,
+      });
+    }
+
     const result: StatusResult = {
       success: true,
-      status: animationData.status_description,
+      status: statusDescription,
       videoUrl: animationData.result_url || undefined,
+      error: errorMessage,
     };
 
     // Кэшируем результат

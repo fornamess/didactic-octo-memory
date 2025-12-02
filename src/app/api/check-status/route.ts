@@ -583,15 +583,22 @@ export async function GET(request: NextRequest) {
     // Персональное видео ещё генерируется
     const isFailed =
       personalStatus.status === 'rejected with error' ||
-      personalStatus.status === 'rejected due to timeout';
+      personalStatus.status === 'rejected due to timeout' ||
+      personalStatus.status?.includes('rejected');
 
     if (isFailed) {
+      const errorDetails = personalStatus.error || personalStatus.status || 'Неизвестная ошибка';
+      console.error(`❌ Personal video task ${taskId} failed:`);
+      console.error(`   Status: ${personalStatus.status}`);
+      console.error(`   Error: ${errorDetails}`);
+      console.error(`   Full status object:`, JSON.stringify(personalStatus, null, 2));
+
       await updateOrderStatus(
         Number(taskId),
-        personalStatus.status,
-        personalStatus.status,
+        personalStatus.status || 'rejected with error',
+        errorDetails,
         undefined,
-        personalStatus.error
+        errorDetails
       );
     }
 
