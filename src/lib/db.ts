@@ -678,6 +678,56 @@ export async function getUserTransactionsAdmin(userId: number) {
   return transactions;
 }
 
+// Получить все транзакции с информацией о пользователях для админки
+export async function getAllTransactionsAdmin(
+  startDate?: string,
+  endDate?: string,
+  status?: 'all' | 'completed' | 'pending'
+) {
+  const db = await getDb();
+  let query = `
+    SELECT
+      bt.id,
+      bt.user_id,
+      bt.amount,
+      bt.type,
+      bt.status,
+      bt.invoice_id,
+      bt.invoice_url,
+      bt.created_at,
+      bt.completed_at,
+      u.nickname,
+      u.email,
+      u.first_name,
+      u.last_name
+    FROM balance_transactions bt
+    LEFT JOIN users u ON bt.user_id = u.id
+    WHERE 1=1
+  `;
+  const params: any[] = [];
+
+  if (startDate) {
+    query += ` AND DATE(bt.created_at) >= DATE(?)`;
+    params.push(startDate);
+  }
+
+  if (endDate) {
+    query += ` AND DATE(bt.created_at) <= DATE(?)`;
+    params.push(endDate);
+  }
+
+  if (status && status !== 'all') {
+    query += ` AND bt.status = ?`;
+    params.push(status);
+  }
+
+  query += ` ORDER BY bt.created_at DESC`;
+
+  const transactions = await all(db, query, params);
+  db.close();
+  return transactions;
+}
+
 // Получить все завершенные заказы с финальными видео для примеров
 export async function getCompletedOrdersWithFinalVideos(): Promise<
   Array<{
@@ -699,4 +749,35 @@ export async function getCompletedOrdersWithFinalVideos(): Promise<
   );
   db.close();
   return orders;
+}
+
+// Получить все истекшие заказы (видео старше 7 дней)
+export async function getExpiredOrders(): Promise<
+  Array<{
+    id: number;
+    video_url: string;
+    video_expires_at: string;
+  }>
+> {
+  const db = await getDb();
+  const orders = await all(
+    db,
+    `SELECT id, video_url, video_expires_at
+     FROM orders
+     WHERE video_expires_at IS NOT NULL
+       AND video_expires_at < datetime('now')
+       AND video_url IS NOT NULL`,
+    []
+  );
+  db.close();
+  return orders;
+}
+
+// Удалить видео из заказа (очистить video_url и video_expires_at)
+export async function clearExpiredVideo(orderId: number): Promise<void> {
+  const db = await getDb();
+  await run(db, `UPDATE orders SET video_url = NULL, video_expires_at = NULL WHERE id = ?`, [
+    orderId,
+  ]);
+  db.close();
 }

@@ -2,24 +2,26 @@ import { getUserFromRequest } from '@/lib/auth';
 import {
   BASE_URL,
   BITBANKER_API_KEY,
+  BITBANKER_SECRET,
   BITBANKER_API_URL,
   BITBANKER_PAYMENT_CURRENCIES,
   BitbankerCurrency,
 } from '@/lib/config';
-import { createBalanceTransaction, ensureDbInitialized } from '@/lib/db';
+import { createBalanceTransaction, ensureDbInitialized, getUserById } from '@/lib/db';
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Генерация подписи для Bitbanker API
+// sign = hmac(currency + amount + header + description, api_key, sha256)
 function generateBitbankerSign(
   currency: string,
   amount: number,
   header: string,
   description: string,
-  apiKey: string
+  apiSecret: string
 ): string {
   const signData = `${currency}${amount}${header}${description}`;
-  return crypto.createHmac('sha256', apiKey).update(signData).digest('hex');
+  return crypto.createHmac('sha256', apiSecret).update(signData).digest('hex');
 }
 
 export async function POST(request: NextRequest) {
@@ -38,57 +40,63 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Минимальная сумма пополнения: 1 Койн' }, { status: 400 });
     }
 
-    // Валидация выбранной криптовалюты
-    let selectedCurrencies: BitbankerCurrency[] = ['USDT', 'BTC', 'ETH', 'TRX'];
+    // Получаем полные данные пользователя для имени и фамилии
+    const userData = await getUserById(user.id);
+    const payerName = userData
+      ? `${userData.first_name} ${userData.last_name}`.trim() || user.email
+      : user.email;
+
+    // Валидация выбранной криптовалюты - только BTC и USDT
+    let selectedCurrencies: BitbankerCurrency[] = ['BTC', 'USDT'];
     if (paymentCurrency) {
       if (Array.isArray(paymentCurrency)) {
         selectedCurrencies = paymentCurrency.filter((c: string) =>
-          BITBANKER_PAYMENT_CURRENCIES.includes(c as BitbankerCurrency)
+          ['BTC', 'USDT'].includes(c)
         ) as BitbankerCurrency[];
-      } else if (BITBANKER_PAYMENT_CURRENCIES.includes(paymentCurrency as BitbankerCurrency)) {
+      } else if (['BTC', 'USDT'].includes(paymentCurrency)) {
         selectedCurrencies = [paymentCurrency as BitbankerCurrency];
       }
     }
 
     if (selectedCurrencies.length === 0) {
-      selectedCurrencies = ['USDT'];
+      selectedCurrencies = ['BTC', 'USDT'];
     }
 
     let invoiceId: string;
     let invoiceUrl: string;
 
     // Проверяем наличие API ключа Bitbanker
-    if (BITBANKER_API_KEY) {
+    if (BITBANKER_API_KEY && BITBANKER_SECRET) {
       try {
-        // Данные для счёта
-        const currency = 'USDT'; // Валюта счёта (в чём выставляем)
-        const header = 'Дед Мороз AI';
-        const description = `Пополнение баланса на ${amount} Койнов для ${user.email}`;
+        // Данные для счёта согласно требованиям
+        const currency = 'USDT'; // Валюта счёта
+        const header = 'Prizmabox';
+        const description = "Payment for online platform services (top-up of the user's internal account balance)";
 
-        // Генерируем подпись
+        // Генерируем подпись используя API Secret
         const sign = generateBitbankerSign(
           currency,
           amount,
           header,
           description,
-          BITBANKER_API_KEY
+          BITBANKER_SECRET
         );
 
         const payload = {
-          payment_currencies: selectedCurrencies, // В каких криптовалютах можно платить
-          currency: currency, // Валюта счёта
+          payment_currencies: selectedCurrencies, // ["BTC", "USDT"]
+          currency: currency, // "USDT"
           amount: amount,
-          description: description,
-          language: 'ru',
-          header: header,
-          payer: user.email,
-          is_convert_payments: false, // Оставляем в крипте
+          description: description, // "Payment for online platform services (top-up of the user's internal account balance)"
+          language: 'en', // "en"
+          header: header, // "Prizmabox"
+          payer: payerName, // Имя и фамилия из личного кабинета
+          is_convert_payments: false, // false
           data: {
             user_id: user.id,
             user_email: user.email,
             coins: amount,
           },
-          sign: sign,
+          sign: sign, // hmac(currency + amount + header + description, api_secret, sha256)
         };
 
         console.log('Creating Bitbanker invoice:', {

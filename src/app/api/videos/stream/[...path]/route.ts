@@ -1,4 +1,5 @@
 import { VIDEO_STORAGE_PATH } from '@/lib/config';
+import { ensureDbInitialized, getDb, get } from '@/lib/db';
 import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
@@ -39,6 +40,36 @@ export async function GET(
     const resolvedStorage = path.resolve(VIDEO_STORAGE_PATH);
     if (!resolvedPath.startsWith(resolvedStorage)) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    // Проверяем срок действия видео (только для final видео)
+    if (filePath.startsWith('final/')) {
+      await ensureDbInitialized();
+      const orderIdMatch = filePath.match(/final_(\d+)\.mp4/);
+      if (orderIdMatch) {
+        const orderId = parseInt(orderIdMatch[1], 10);
+        const db = await getDb();
+        const order = await get(
+          db,
+          'SELECT video_expires_at FROM orders WHERE id = ?',
+          [orderId]
+        );
+        db.close();
+
+        if (order && order.video_expires_at) {
+          const expiresAt = new Date(order.video_expires_at);
+          if (expiresAt < new Date()) {
+            // Видео истекло - удаляем файл и возвращаем 404
+            try {
+              fs.unlinkSync(fullPath);
+              console.log(`🗑️ Deleted expired video: ${filePath}`);
+            } catch (err) {
+              console.error('Error deleting expired video:', err);
+            }
+            return NextResponse.json({ error: 'Video expired' }, { status: 410 });
+          }
+        }
+      }
     }
 
     // Читаем файл
