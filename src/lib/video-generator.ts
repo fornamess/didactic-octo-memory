@@ -516,20 +516,26 @@ export async function concatenateVideos(
     ffmpeg.setFfmpegPath(FFMPEG_PATH);
 
     // Получаем метаданные видео (длительность и наличие аудио)
-    const getVideoMetadata = (videoPath: string): Promise<{ duration: number; hasAudio: boolean }> => {
+    const getVideoMetadata = (
+      videoPath: string
+    ): Promise<{ duration: number; hasAudio: boolean }> => {
       return new Promise((resolve) => {
         ffmpeg.ffprobe(
           videoPath,
-          (err: Error | null, metadata?: { format?: { duration?: number }; streams?: Array<{ codec_type?: string }> }) => {
+          (
+            err: Error | null,
+            metadata?: { format?: { duration?: number }; streams?: Array<{ codec_type?: string }> }
+          ) => {
             if (err) {
               console.warn(`Error probing ${videoPath}:`, err.message);
               resolve({ duration: 15, hasAudio: false });
               return;
             }
-            
+
             const duration = metadata?.format?.duration || 15;
-            const hasAudio = metadata?.streams?.some(stream => stream.codec_type === 'audio') || false;
-            
+            const hasAudio =
+              metadata?.streams?.some((stream) => stream.codec_type === 'audio') || false;
+
             resolve({ duration, hasAudio });
           }
         );
@@ -555,56 +561,62 @@ export async function concatenateVideos(
       `Audio tracks - Intro: ${introMeta.hasAudio}, Personal: ${personalMeta.hasAudio}, Outro: ${outroMeta.hasAudio}`
     );
 
-    // Используем более короткий fade для экономии памяти
-    const fadeDuration = 1.0; // Было 2.0, теперь 1.0
-    const introFadeOutStart = Math.max(0, introDuration - fadeDuration);
-    const personalFadeOutStart = Math.max(0, personalDuration - fadeDuration);
-
-    // ОПТИМИЗИРОВАННЫЙ фильтр - проверяем наличие аудио
+    // УПРОЩЕННАЯ КОНКАТЕНАЦИЯ - без fade фильтров для надежности
+    // Используем простой concat фильтр без переходов
     let filterComplex: string;
     let outputOptions: string[];
 
     if (hasAudio && introMeta.hasAudio && personalMeta.hasAudio && outroMeta.hasAudio) {
-      // Все видео имеют аудио - используем полную конкатенацию
+      // Все видео имеют аудио - используем полную конкатенацию БЕЗ fade
+      console.log('Using simple concatenation with audio');
       filterComplex = [
-        `[0:v]fade=t=out:st=${introFadeOutStart}:d=${fadeDuration}[v0]`,
-        `[1:v]fade=t=in:st=0:d=${fadeDuration},fade=t=out:st=${personalFadeOutStart}:d=${fadeDuration}[v1]`,
-        `[2:v]fade=t=in:st=0:d=${fadeDuration}[v2]`,
-        `[v0][v1][v2]concat=n=3:v=1:a=0[outv]`,
+        `[0:v][1:v][2:v]concat=n=3:v=1:a=0[outv]`,
         `[0:a][1:a][2:a]concat=n=3:v=0:a=1[outa]`,
       ].join('; ');
-      
+
       outputOptions = [
-        '-map', '[outv]',
-        '-map', '[outa]',
-        '-c:v', 'libx264',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-preset', 'ultrafast',
-        '-crf', '28',
-        '-pix_fmt', 'yuv420p',
-        '-threads', '1',
-        '-max_muxing_queue_size', '512',
+        '-map',
+        '[outv]',
+        '-map',
+        '[outa]',
+        '-c:v',
+        'libx264',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-preset',
+        'ultrafast',
+        '-crf',
+        '28',
+        '-pix_fmt',
+        'yuv420p',
+        '-threads',
+        '1',
+        '-max_muxing_queue_size',
+        '1024',
         '-y',
       ];
     } else {
       // Нет аудио или не во всех видео - только видео конкатенация
       console.log('⚠️ Some videos missing audio, using video-only concatenation');
-      filterComplex = [
-        `[0:v]fade=t=out:st=${introFadeOutStart}:d=${fadeDuration}[v0]`,
-        `[1:v]fade=t=in:st=0:d=${fadeDuration},fade=t=out:st=${personalFadeOutStart}:d=${fadeDuration}[v1]`,
-        `[2:v]fade=t=in:st=0:d=${fadeDuration}[v2]`,
-        `[v0][v1][v2]concat=n=3:v=1:a=0[outv]`,
-      ].join('; ');
-      
+      filterComplex = [`[0:v][1:v][2:v]concat=n=3:v=1:a=0[outv]`].join('; ');
+
       outputOptions = [
-        '-map', '[outv]',
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '28',
-        '-pix_fmt', 'yuv420p',
-        '-threads', '1',
-        '-max_muxing_queue_size', '512',
+        '-map',
+        '[outv]',
+        '-c:v',
+        'libx264',
+        '-preset',
+        'ultrafast',
+        '-crf',
+        '28',
+        '-pix_fmt',
+        'yuv420p',
+        '-threads',
+        '1',
+        '-max_muxing_queue_size',
+        '1024',
         '-an', // Без аудио
         '-y',
       ];
@@ -684,14 +696,14 @@ export async function concatenateVideos(
 
           const errorMsg = err.message || String(err);
           console.error('FFmpeg error:', errorMsg);
-          
+
           // Выводим дополнительную информацию об ошибке
           if (errorMsg.includes('exited with code')) {
             const codeMatch = errorMsg.match(/exited with code (\d+)/);
             if (codeMatch) {
               const exitCode = codeMatch[1];
               console.error(`FFmpeg exit code: ${exitCode}`);
-              
+
               if (exitCode === '234' || exitCode === '1') {
                 console.error('⚠️ Possible causes:');
                 console.error('  - Missing audio streams in input videos');
