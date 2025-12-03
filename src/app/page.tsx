@@ -44,25 +44,33 @@ export default function Home() {
 
   // Обновляем баланс асинхронно после рендера (не блокирует)
   useEffect(() => {
-    if (user && typeof window !== 'undefined') {
+    if (user?.id && typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       if (token) {
         // Загружаем баланс с небольшой задержкой для приоритизации критического контента
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           fetch('/api/user/balance', {
             headers: { Authorization: `Bearer ${token}` },
           })
             .then((res) => res.json())
             .then((data) => {
               if (data.balance !== undefined) {
-                setUser((prev) => (prev ? { ...prev, balance: data.balance } : null));
+                setUser((prev) => {
+                  // Обновляем только если баланс действительно изменился
+                  if (prev && prev.balance !== data.balance) {
+                    return { ...prev, balance: data.balance };
+                  }
+                  return prev;
+                });
               }
             })
             .catch(() => {});
         }, 200);
+
+        return () => clearTimeout(timeoutId);
       }
     }
-  }, [user]);
+  }, [user?.id]); // Зависим только от ID пользователя, а не от всего объекта
 
   return (
     <main className="min-h-screen relative overflow-hidden">

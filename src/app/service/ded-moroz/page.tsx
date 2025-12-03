@@ -67,18 +67,26 @@ export default function DedMorozServicePage() {
       setUser(JSON.parse(userData));
 
       // Обновляем баланс асинхронно с задержкой (не блокирует рендеринг)
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         fetch('/api/user/balance', {
           headers: { Authorization: `Bearer ${token}` },
         })
           .then((res) => res.json())
           .then((data) => {
             if (data.balance !== undefined) {
-              setUser((prev) => (prev ? { ...prev, balance: data.balance } : null));
+              setUser((prev) => {
+                // Обновляем только если баланс действительно изменился
+                if (prev && prev.balance !== data.balance) {
+                  return { ...prev, balance: data.balance };
+                }
+                return prev;
+              });
             }
           })
           .catch(() => {});
       }, 100);
+
+      return () => clearTimeout(timeoutId);
     }
 
     // НЕ загружаем видео сразу - только при взаимодействии
