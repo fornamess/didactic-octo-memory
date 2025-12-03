@@ -33,13 +33,13 @@ body {
   body {
     font-size: 14px;
   }
-  
+
   /* Улучшаем тач-таргеты для мобильных */
   button, a, input, select, textarea {
     min-height: 44px;
     min-width: 44px;
   }
-  
+
   /* Убираем hover эффекты на тач-устройствах */
   @media (hover: none) {
     .btn-magic:hover {
