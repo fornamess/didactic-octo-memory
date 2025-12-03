@@ -552,8 +552,6 @@ export async function concatenateVideos(
     const personalDuration = personalMeta.duration;
     const outroDuration = outroMeta.duration;
 
-    const hasAudio = introMeta.hasAudio || personalMeta.hasAudio || outroMeta.hasAudio;
-
     console.log(
       `Durations - Intro: ${introDuration}s, Personal: ${personalDuration}s, Outro: ${outroDuration}s`
     );
@@ -561,83 +559,48 @@ export async function concatenateVideos(
       `Audio tracks - Intro: ${introMeta.hasAudio}, Personal: ${personalMeta.hasAudio}, Outro: ${outroMeta.hasAudio}`
     );
 
-    // УПРОЩЕННАЯ КОНКАТЕНАЦИЯ - без fade фильтров для надежности
-    // Используем простой concat фильтр без переходов
-    let filterComplex: string;
-    let outputOptions: string[];
+    // МАКСИМАЛЬНО ПРОСТАЯ КОНКАТЕНАЦИЯ - concat demuxer БЕЗ ВСЕХ ФИЛЬТРОВ
+    // Создаем временный файл со списком видео для concat demuxer
+    const concatListPath = path.join(outputDir, `concat_list_${Date.now()}.txt`);
+    const concatListContent = [
+      `file '${introPath.replace(/'/g, "'\\''")}'`,
+      `file '${personalPath.replace(/'/g, "'\\''")}'`,
+      `file '${outroPath.replace(/'/g, "'\\''")}'`,
+    ].join('\n');
 
-    if (hasAudio && introMeta.hasAudio && personalMeta.hasAudio && outroMeta.hasAudio) {
-      // Все видео имеют аудио - используем полную конкатенацию БЕЗ fade
-      console.log('Using simple concatenation with audio');
-      filterComplex = [
-        `[0:v][1:v][2:v]concat=n=3:v=1:a=0[outv]`,
-        `[0:a][1:a][2:a]concat=n=3:v=0:a=1[outa]`,
-      ].join('; ');
+    fs.writeFileSync(concatListPath, concatListContent, 'utf8');
 
-      outputOptions = [
-        '-map',
-        '[outv]',
-        '-map',
-        '[outa]',
-        '-c:v',
-        'libx264',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
-        '-preset',
-        'ultrafast',
-        '-crf',
-        '28',
-        '-pix_fmt',
-        'yuv420p',
-        '-threads',
-        '1',
-        '-max_muxing_queue_size',
-        '1024',
-        '-y',
-      ];
-    } else {
-      // Нет аудио или не во всех видео - только видео конкатенация
-      console.log('⚠️ Some videos missing audio, using video-only concatenation');
-      filterComplex = [`[0:v][1:v][2:v]concat=n=3:v=1:a=0[outv]`].join('; ');
-
-      outputOptions = [
-        '-map',
-        '[outv]',
-        '-c:v',
-        'libx264',
-        '-preset',
-        'ultrafast',
-        '-crf',
-        '28',
-        '-pix_fmt',
-        'yuv420p',
-        '-threads',
-        '1',
-        '-max_muxing_queue_size',
-        '1024',
-        '-an', // Без аудио
-        '-y',
-      ];
-    }
+    console.log('Using concat demuxer (no filters, no effects)');
 
     return new Promise((resolve) => {
       const ffmpegCommand = ffmpeg()
-        .input(introPath)
-        .input(personalPath)
-        .input(outroPath)
-        .complexFilter(filterComplex)
-        .outputOptions(outputOptions)
+        .input(concatListPath)
+        .inputOptions(['-f', 'concat', '-safe', '0'])
+        .outputOptions([
+          '-c:v',
+          'libx264', // Перекодируем видео для совместимости
+          '-preset',
+          'ultrafast',
+          '-crf',
+          '28',
+          '-pix_fmt',
+          'yuv420p',
+          '-c:a',
+          'aac', // Перекодируем аудио для совместимости
+          '-b:a',
+          '128k',
+          '-threads',
+          '1',
+          '-y',
+        ])
         .output(outputPath);
 
       let lastProgress = 0;
 
       ffmpegCommand
         .on('start', (commandLine: string) => {
-          console.log('FFmpeg started (low-memory mode)');
+          console.log('FFmpeg started (concat demuxer, no filters)');
           console.log('FFmpeg command:', commandLine);
-          console.log('Filter complex:', filterComplex);
         })
         .on('progress', (progress) => {
           const percent = Math.round(progress.percent || 0);
@@ -647,6 +610,13 @@ export async function concatenateVideos(
           }
         })
         .on('end', () => {
+          // Удаляем временный файл списка
+          try {
+            if (fs.existsSync(concatListPath)) {
+              fs.unlinkSync(concatListPath);
+            }
+          } catch {}
+
           releaseGlobalLock();
           removeFileLock(outputPath);
 
@@ -691,6 +661,13 @@ export async function concatenateVideos(
           }
         })
         .on('error', (err: Error) => {
+          // Удаляем временный файл списка
+          try {
+            if (fs.existsSync(concatListPath)) {
+              fs.unlinkSync(concatListPath);
+            }
+          } catch {}
+
           releaseGlobalLock();
           removeFileLock(outputPath);
 
