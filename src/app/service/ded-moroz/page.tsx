@@ -270,61 +270,63 @@ export default function DedMorozServicePage() {
       </div>
 
       {/* Хедер */}
-      <header className="relative z-10 pt-6 pb-4">
-        <div className="container mx-auto px-4 flex justify-between items-center">
+      <header className="relative z-10 pt-4 sm:pt-6 pb-4">
+        <div className="container mx-auto px-3 sm:px-4 flex justify-between items-center">
           <Link
             href="/"
-            className="text-[#a8d8ea] hover:text-white transition-colors flex items-center gap-2"
+            className="text-[#a8d8ea] hover:text-white transition-colors flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base"
           >
-            <ArrowLeft className="w-5 h-5" />
-            На главную
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline">На главную</span>
+            <span className="sm:hidden">Назад</span>
           </Link>
 
           {user ? (
             <Link
               href="/profile"
-              className="glass px-4 py-2 rounded-xl text-[#f0f8ff] hover:bg-white/10 transition-colors flex items-center gap-2"
+              className="glass px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[#f0f8ff] hover:bg-white/10 transition-colors flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base"
             >
-              <Coins className="w-5 h-5 text-[#ffd700]" />
+              <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-[#ffd700]" />
               <span className="font-bold text-[#ffd700]">{user.balance}</span>
-              <span className="text-[#a8d8ea]/60">Койнов</span>
+              <span className="text-[#a8d8ea]/60 hidden sm:inline">Койнов</span>
             </Link>
           ) : (
             <Link
               href="/login"
-              className="btn-magic px-4 py-2 rounded-xl text-white flex items-center gap-2"
+              className="btn-magic px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-white flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base"
             >
-              <User className="w-5 h-5" />
-              Войти
+              <User className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Войти</span>
+              <span className="sm:hidden">Вход</span>
             </Link>
           )}
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 relative z-10">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-8 relative z-10">
         {/* Заголовок услуги */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          className="text-center mb-6 sm:mb-8"
         >
-          <span className="text-7xl mb-4 block">🎅</span>
-          <h1 className="text-4xl md:text-5xl font-bold text-gradient font-display mb-3">
+          <span className="text-5xl sm:text-7xl mb-2 sm:mb-4 block">🎅</span>
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-gradient font-display mb-2 sm:mb-3 px-2">
             Видео-поздравление от Деда Мороза
           </h1>
-          <p className="text-xl text-[#a8d8ea]">Персонализированное видео для вашего ребёнка</p>
+          <p className="text-base sm:text-xl text-[#a8d8ea] px-2">Персонализированное видео для вашего ребёнка</p>
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-4 sm:gap-8 max-w-6xl mx-auto">
           {/* Видео-превью */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="card-festive rounded-3xl p-6 overflow-hidden"
+            className="card-festive rounded-2xl sm:rounded-3xl p-4 sm:p-6 overflow-hidden order-2 lg:order-1"
           >
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <Play className="w-5 h-5 text-[#c41e3a]" />
+            <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
+              <Play className="w-4 h-4 sm:w-5 sm:h-5 text-[#c41e3a]" />
               Пример готового видео
             </h2>
 
@@ -379,16 +381,16 @@ export default function DedMorozServicePage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
-            className="card-festive rounded-3xl p-6"
+            className="card-festive rounded-2xl sm:rounded-3xl p-4 sm:p-6 order-1 lg:order-2"
           >
             {/* Цена */}
-            <div className="flex items-center justify-between mb-6 pb-6 border-b border-white/10">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-white/10 gap-4">
               <div>
-                <p className="text-[#a8d8ea]/60 text-sm line-through">Стоимость: 5 Койнов</p>
-                <div className="flex items-center gap-2">
-                  <Gift className="w-8 h-8 text-[#0d4f2b]" />
-                  <span className="text-4xl font-bold text-[#0d4f2b]">БЕСПЛАТНО</span>
-                  <span className="text-sm bg-[#c41e3a] text-white px-2 py-1 rounded-lg">
+                <p className="text-[#a8d8ea]/60 text-xs sm:text-sm line-through">Стоимость: 5 Койнов</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Gift className="w-6 h-6 sm:w-8 sm:h-8 text-[#0d4f2b]" />
+                  <span className="text-2xl sm:text-4xl font-bold text-[#0d4f2b]">БЕСПЛАТНО</span>
+                  <span className="text-xs sm:text-sm bg-[#c41e3a] text-white px-2 py-1 rounded-lg">
                     Акция!
                   </span>
                 </div>
@@ -397,51 +399,51 @@ export default function DedMorozServicePage() {
                 onClick={handleOrder}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="btn-magic px-6 py-4 rounded-xl text-lg font-bold text-white flex items-center gap-2"
+                className="btn-magic px-4 sm:px-6 py-3 sm:py-4 rounded-xl text-base sm:text-lg font-bold text-white flex items-center gap-2 w-full sm:w-auto justify-center"
               >
-                <ShoppingCart className="w-6 h-6" />
+                <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
                 Заказать
               </motion.button>
             </div>
 
             {/* Описание */}
-            <div className="space-y-4 text-[#a8d8ea]">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Gift className="w-5 h-5 text-[#c41e3a]" />
+            <div className="space-y-3 sm:space-y-4 text-[#a8d8ea]">
+              <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                <Gift className="w-4 h-4 sm:w-5 sm:h-5 text-[#c41e3a]" />
                 Что вы получите
               </h3>
 
-              <p className="leading-relaxed">
+              <p className="text-sm sm:text-base leading-relaxed">
                 Уникальное видео длиной <strong>2 минуты</strong>, в котором настоящий Дед Мороз
                 обратится к вашему ребёнку по имени!
               </p>
 
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
-                  <span>Дедушка Мороз назовёт имя вашего ребёнка и поздравит с Новым Годом</span>
+              <ul className="space-y-2 sm:space-y-3">
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
+                  <span className="text-sm sm:text-base">Дедушка Мороз назовёт имя вашего ребёнка и поздравит с Новым Годом</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
-                  <span>Покажет и прокомментирует загруженные вами фотографии</span>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
+                  <span className="text-sm sm:text-base">Покажет и прокомментирует загруженные вами фотографии</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
-                  <span>Расскажет про Год Лошади 2026 и пожелает удачи</span>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
+                  <span className="text-sm sm:text-base">Расскажет про Год Лошади 2026 и пожелает удачи</span>
                 </li>
-                <li className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
-                  <span>Видео будет доступно для скачивания в личном кабинете</span>
+                <li className="flex items-start gap-2 sm:gap-3">
+                  <Check className="w-4 h-4 sm:w-5 sm:h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
+                  <span className="text-sm sm:text-base">Видео будет доступно для скачивания в личном кабинете</span>
                 </li>
               </ul>
 
-              <div className="flex items-center gap-4 pt-4 text-sm text-[#a8d8ea]/60">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-3 sm:pt-4 text-xs sm:text-sm text-[#a8d8ea]/60">
                 <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
+                  <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
                   ~2 минуты
                 </span>
                 <span className="flex items-center gap-1">
-                  <Star className="w-4 h-4" />
+                  <Star className="w-3 h-3 sm:w-4 sm:h-4" />
                   HD качество
                 </span>
                 <span className="flex items-center gap-1">
@@ -459,10 +461,10 @@ export default function DedMorozServicePage() {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
-              className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-green-500/90 text-white px-6 py-4 rounded-xl shadow-2xl max-w-md text-center z-50"
+              className="fixed bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 bg-green-500/90 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl shadow-2xl max-w-md text-center z-50 mx-4"
             >
-              <Check className="w-6 h-6 mx-auto mb-2" />
-              {success}
+              <Check className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1 sm:mb-2" />
+              <p className="text-sm sm:text-base">{success}</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -481,40 +483,40 @@ export default function DedMorozServicePage() {
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="card-festive rounded-3xl p-6 md:p-8 w-full max-w-2xl max-h-[90vh] flex flex-col"
+                className="card-festive rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 w-full max-w-2xl max-h-[90vh] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex-shrink-0 flex justify-between items-center mb-6">
-                  <h2 className="text-2xl font-bold text-gradient font-display">
+                <div className="flex-shrink-0 flex justify-between items-center mb-4 sm:mb-6">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gradient font-display">
                     Оформление заказа
                   </h2>
                   <button
                     onClick={() => setShowOrderForm(false)}
-                    className="text-[#a8d8ea]/60 hover:text-white"
+                    className="text-[#a8d8ea]/60 hover:text-white p-1"
                   >
-                    <X className="w-6 h-6" />
+                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto pr-2 -mr-2 min-h-0">
-                  <form onSubmit={handleSubmitOrder} className="space-y-6">
+                <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 -mr-1 sm:-mr-2 min-h-0">
+                  <form onSubmit={handleSubmitOrder} className="space-y-4 sm:space-y-6">
                     {/* Имя ребёнка */}
                     <div>
-                      <label className="block text-[#a8d8ea] mb-2 font-semibold">Имя ребёнка</label>
+                      <label className="block text-[#a8d8ea] mb-2 font-semibold text-sm sm:text-base">Имя ребёнка</label>
                       <input
                         type="text"
                         value={formData.childName}
                         onChange={(e) => setFormData({ ...formData, childName: e.target.value })}
                         placeholder="Как зовут ребёнка?"
                         required
-                        className="input-magic w-full px-5 py-4 rounded-xl text-[#f0f8ff] text-lg"
+                        className="input-magic w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl text-[#f0f8ff] text-base sm:text-lg"
                       />
                     </div>
 
                     {/* Возраст ребёнка */}
                     <div>
-                      <label className="block text-[#a8d8ea] mb-2 font-semibold">
-                        Возраст ребёнка <span className="text-[#a8d8ea]/60 text-sm">(необязательно)</span>
+                      <label className="block text-[#a8d8ea] mb-2 font-semibold text-sm sm:text-base">
+                        Возраст ребёнка <span className="text-[#a8d8ea]/60 text-xs sm:text-sm">(необязательно)</span>
                       </label>
                       <input
                         type="number"
@@ -525,17 +527,17 @@ export default function DedMorozServicePage() {
                           setFormData({ ...formData, childAge: e.target.value || '' })
                         }
                         placeholder="Сколько лет ребёнку?"
-                        className="input-magic w-full px-5 py-4 rounded-xl text-[#f0f8ff] text-lg"
+                        className="input-magic w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl text-[#f0f8ff] text-base sm:text-lg"
                       />
-                      <p className="text-[#a8d8ea]/60 text-sm mt-1">
+                      <p className="text-[#a8d8ea]/60 text-xs sm:text-sm mt-1">
                         Укажите возраст, чтобы Дед Мороз обратился к ребёнку более персонально
                       </p>
                     </div>
 
                     {/* Фото 1 */}
-                    <div className="space-y-3">
-                      <label className="block text-[#a8d8ea] font-semibold">Фото №1</label>
-                      <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2 sm:space-y-3">
+                      <label className="block text-[#a8d8ea] font-semibold text-sm sm:text-base">Фото №1</label>
+                      <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           {formData.photo1Preview ? (
                             <div className="relative aspect-video rounded-xl overflow-hidden">
@@ -608,9 +610,9 @@ export default function DedMorozServicePage() {
                     </div>
 
                     {/* Фото 2 */}
-                    <div className="space-y-3">
-                      <label className="block text-[#a8d8ea] font-semibold">Фото №2</label>
-                      <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2 sm:space-y-3">
+                      <label className="block text-[#a8d8ea] font-semibold text-sm sm:text-base">Фото №2</label>
+                      <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
                         <div>
                           {formData.photo2Preview ? (
                             <div className="relative aspect-video rounded-xl overflow-hidden">
@@ -692,13 +694,13 @@ export default function DedMorozServicePage() {
                 </div>
 
                 {/* Итого и кнопка - фиксированные снизу */}
-                <div className="flex-shrink-0 pt-4 border-t border-white/10 mt-4 space-y-4">
-                  <div className="bg-[#0d4f2b]/20 rounded-xl p-4 text-center">
-                    <p className="text-[#0d4f2b] text-lg font-bold flex items-center justify-center gap-2">
-                      <Gift className="w-6 h-6" />
+                <div className="flex-shrink-0 pt-3 sm:pt-4 border-t border-white/10 mt-3 sm:mt-4 space-y-3 sm:space-y-4">
+                  <div className="bg-[#0d4f2b]/20 rounded-xl p-3 sm:p-4 text-center">
+                    <p className="text-[#0d4f2b] text-base sm:text-lg font-bold flex items-center justify-center gap-2">
+                      <Gift className="w-5 h-5 sm:w-6 sm:h-6" />
                       Это бесплатно! 🎁
                     </p>
-                    <p className="text-[#a8d8ea]/60 text-sm mt-1">Акция на новогодние праздники</p>
+                    <p className="text-[#a8d8ea]/60 text-xs sm:text-sm mt-1">Акция на новогодние праздники</p>
                   </div>
 
                   <motion.button
@@ -707,16 +709,16 @@ export default function DedMorozServicePage() {
                     disabled={loading}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="btn-magic w-full py-5 rounded-xl text-xl font-bold text-white flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn-magic w-full py-4 sm:py-5 rounded-xl text-base sm:text-xl font-bold text-white flex items-center justify-center gap-2 sm:gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
-                        <Sparkles className="w-6 h-6 animate-spin" />
+                        <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                         <span>Создание видео...</span>
                       </>
                     ) : (
                       <>
-                        <Gift className="w-6 h-6" />
+                        <Gift className="w-5 h-5 sm:w-6 sm:h-6" />
                         <span>Получить бесплатно</span>
                       </>
                     )}

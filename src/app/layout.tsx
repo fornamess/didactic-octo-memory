@@ -26,6 +26,11 @@ const siteUrl = BASE_URL;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 5,
+  },
   title: {
     default: '🎅 Видео-поздравление от Деда Мороза | AI Генератор',
     template: '%s | Видео-поздравления от Деда Мороза',
