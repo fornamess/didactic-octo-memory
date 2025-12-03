@@ -2,9 +2,9 @@ import { getUserFromRequest } from '@/lib/auth';
 import {
   BASE_URL,
   BITBANKER_API_KEY,
-  BITBANKER_SECRET,
   BITBANKER_API_URL,
   BITBANKER_PAYMENT_CURRENCIES,
+  BITBANKER_SECRET,
   BitbankerCurrency,
 } from '@/lib/config';
 import { createBalanceTransaction, ensureDbInitialized, getUserById } from '@/lib/db';
@@ -13,15 +13,18 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Генерация подписи для Bitbanker API
 // sign = hmac(currency + amount + header + description, api_key, sha256)
+// Согласно документации Bitbanker, используется api_key, а не api_secret
 function generateBitbankerSign(
   currency: string,
   amount: number,
   header: string,
   description: string,
-  apiSecret: string
+  apiKey: string
 ): string {
-  const signData = `${currency}${amount}${header}${description}`;
-  return crypto.createHmac('sha256', apiSecret).update(signData).digest('hex');
+  // Конвертируем amount в строку без десятичных знаков, если это целое число
+  const amountStr = Number.isInteger(amount) ? amount.toString() : amount.toFixed(2);
+  const signData = `${currency}${amountStr}${header}${description}`;
+  return crypto.createHmac('sha256', apiKey).update(signData).digest('hex');
 }
 
 export async function POST(request: NextRequest) {
@@ -71,16 +74,26 @@ export async function POST(request: NextRequest) {
         // Данные для счёта согласно требованиям
         const currency = 'USDT'; // Валюта счёта
         const header = 'Prizmabox';
-        const description = "Payment for online platform services (top-up of the user's internal account balance)";
+        const description =
+          "Payment for online platform services (top-up of the user's internal account balance)";
 
-        // Генерируем подпись используя API Secret
+        // Генерируем подпись
+        // Согласно документации Bitbanker, подпись формируется как:
+        // hmac(currency + amount + header + description, api_key, sha256)
         const sign = generateBitbankerSign(
           currency,
           amount,
           header,
           description,
-          BITBANKER_SECRET
+          BITBANKER_API_KEY
         );
+
+        // Для отладки: логируем строку для подписи
+        const amountStr = Number.isInteger(amount) ? amount.toString() : amount.toFixed(2);
+        const signData = `${currency}${amountStr}${header}${description}`;
+        console.log('Sign data string:', signData);
+        console.log('Using BITBANKER_API_KEY for signing');
+        console.log('Sign (first 20 chars):', sign.substring(0, 20));
 
         const payload = {
           payment_currencies: selectedCurrencies, // ["BTC", "USDT"]
@@ -126,7 +139,8 @@ export async function POST(request: NextRequest) {
 
         if (invoiceData.result !== 'success') {
           console.error('Bitbanker API error:', invoiceData);
-          throw new Error(invoiceData.message || 'Bitbanker API error');
+          const errorMessage = invoiceData.message || invoiceData.code || 'Bitbanker API error';
+          throw new Error(errorMessage);
         }
 
         invoiceId = invoiceData.id;
