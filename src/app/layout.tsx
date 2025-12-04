@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 // import { Nunito, Marck_Script } from 'next/font/google';
 import { BASE_URL } from '@/lib/config';
+import Footer from '@/components/Footer';
 import './globals.css';
 
 // Временно отключены Google Fonts для сборки в Docker
@@ -147,7 +148,10 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {children}
+        <Footer />
+      </body>
     </html>
   );
 }
