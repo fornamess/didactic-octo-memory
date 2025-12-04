@@ -682,7 +682,8 @@ export async function getUserTransactionsAdmin(userId: number) {
 export async function getAllTransactionsAdmin(
   startDate?: string,
   endDate?: string,
-  status?: 'all' | 'completed' | 'pending'
+  status?: 'all' | 'completed' | 'pending',
+  nickname?: string
 ) {
   const db = await getDb();
   let query = `
@@ -719,6 +720,12 @@ export async function getAllTransactionsAdmin(
   if (status && status !== 'all') {
     query += ` AND bt.status = ?`;
     params.push(status);
+  }
+
+  if (nickname) {
+    query += ` AND (u.nickname LIKE ? OR u.email LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)`;
+    const searchPattern = `%${nickname}%`;
+    params.push(searchPattern, searchPattern, searchPattern, searchPattern);
   }
 
   query += ` ORDER BY bt.created_at DESC`;

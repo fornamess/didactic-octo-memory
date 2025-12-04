@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate') || undefined;
     const endDate = searchParams.get('endDate') || undefined;
     const status = (searchParams.get('status') as 'all' | 'completed' | 'pending') || 'all';
+    const nickname = searchParams.get('nickname') || undefined;
 
-    const invoices = await getAllTransactionsAdmin(startDate, endDate, status);
+    const invoices = await getAllTransactionsAdmin(startDate, endDate, status, nickname);
 
     return NextResponse.json({ success: true, invoices });
   } catch (error) {

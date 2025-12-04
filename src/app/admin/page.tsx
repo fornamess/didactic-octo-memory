@@ -62,6 +62,7 @@ export default function AdminPage() {
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "pending">("all");
+  const [nicknameFilter, setNicknameFilter] = useState("");
 
   // Настройки
   const [settings, setSettings] = useState({
@@ -236,6 +237,31 @@ export default function AdminPage() {
     }
   };
 
+  const handleCompleteInvoice = async (invoiceId: string) => {
+    if (!confirm("Вы уверены, что хотите обработать этот инвойс? Баланс пользователя будет пополнен.")) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/invoices/${invoiceId}/complete`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("Инвойс успешно обработан! Баланс пользователя пополнен.");
+        loadInvoices(); // Обновляем список
+      } else {
+        alert(data.error || "Ошибка при обработке инвойса");
+      }
+    } catch (error) {
+      console.error("Complete invoice error:", error);
+      alert("Ошибка при обработке инвойса");
+    }
+  };
+
   const loadInvoices = async () => {
     setInvoicesLoading(true);
     try {
@@ -244,6 +270,7 @@ export default function AdminPage() {
       if (dateFilter.start) params.append("startDate", dateFilter.start);
       if (dateFilter.end) params.append("endDate", dateFilter.end);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (nicknameFilter.trim()) params.append("nickname", nicknameFilter.trim());
 
       const response = await fetch(
         `/api/admin/invoices?${params.toString()}`,
@@ -264,7 +291,7 @@ export default function AdminPage() {
     if (activeTab === "finances") {
       loadInvoices();
     }
-  }, [activeTab, dateFilter, statusFilter]);
+  }, [activeTab, dateFilter, statusFilter, nicknameFilter]);
 
   if (loading) {
     return (
@@ -471,7 +498,7 @@ export default function AdminPage() {
                   <Filter className="w-5 h-5" />
                   Фильтры
                 </h2>
-                <div className="grid md:grid-cols-3 gap-4">
+                <div className="grid md:grid-cols-4 gap-4">
                   {/* Период */}
                   <div>
                     <label className="block text-[#a8d8ea] text-sm mb-2">Начало периода</label>
@@ -510,6 +537,17 @@ export default function AdminPage() {
                       <option value="pending">Не оплачен</option>
                     </select>
                   </div>
+                  {/* Фильтр по нику */}
+                  <div>
+                    <label className="block text-[#a8d8ea] text-sm mb-2">Ник пользователя</label>
+                    <input
+                      type="text"
+                      value={nicknameFilter}
+                      onChange={(e) => setNicknameFilter(e.target.value)}
+                      placeholder="Поиск по нику..."
+                      className="input-magic w-full px-4 py-2 rounded-xl text-[#f0f8ff]"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -533,7 +571,8 @@ export default function AdminPage() {
                           <th className="pb-3 pr-4">Ник</th>
                           <th className="pb-3 pr-4">Сумма</th>
                           <th className="pb-3 pr-4">Статус</th>
-                          <th className="pb-3">Ссылка на инвойс</th>
+                          <th className="pb-3 pr-4">Ссылка на инвойс</th>
+                          <th className="pb-3">Действия</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -572,7 +611,7 @@ export default function AdminPage() {
                                     {invoice.status === "completed" ? "Оплачен" : "Не оплачен"}
                                   </span>
                                 </td>
-                                <td className="py-4">
+                                <td className="py-4 pr-4">
                                   {invoice.invoice_url ? (
                                     <a
                                       href={invoice.invoice_url}
@@ -586,12 +625,23 @@ export default function AdminPage() {
                                     <span className="text-[#a8d8ea]/40">—</span>
                                   )}
                                 </td>
+                                <td className="py-4">
+                                  {invoice.status !== "completed" && (
+                                    <button
+                                      onClick={() => handleCompleteInvoice(invoice.invoice_id)}
+                                      className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg text-sm font-semibold transition-colors"
+                                      title="Отметить как оплаченный"
+                                    >
+                                      Обработать
+                                    </button>
+                                  )}
+                                </td>
                               </tr>
                             );
                           })
                         ) : (
                           <tr>
-                            <td colSpan={6} className="py-8 text-center text-[#a8d8ea]/60">
+                            <td colSpan={7} className="py-8 text-center text-[#a8d8ea]/60">
                               Инвойсов не найдено
                             </td>
                           </tr>

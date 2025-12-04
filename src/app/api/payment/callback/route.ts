@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Верификация подписи от Bitbanker (sign_2 использует API Secret)
 function verifyBitbankerWebhookSign(
   currency: string,
-  amount: number,
+  amount: string | number,
   header: string,
   description: string,
   receivedSign: string,
@@ -22,7 +22,14 @@ function verifyBitbankerWebhookSign(
   }
 
   try {
-    const signData = `${currency}${amount}${header}${description}`;
+    // Форматируем amount как строку
+    const amountStr =
+      typeof amount === 'number'
+        ? Number.isInteger(amount)
+          ? amount.toString()
+          : amount.toFixed(2)
+        : amount;
+    const signData = `${currency}${amountStr}${header}${description}`;
     const expectedSign = crypto.createHmac('sha256', secret).update(signData).digest('hex');
 
     return crypto.timingSafeEqual(Buffer.from(receivedSign), Buffer.from(expectedSign));
@@ -35,7 +42,7 @@ function verifyBitbankerWebhookSign(
 // Альтернативная верификация через sign (использует API Key)
 function verifyBitbankerSign(
   currency: string,
-  amount: number,
+  amount: string | number,
   header: string,
   description: string,
   receivedSign: string,
@@ -46,7 +53,14 @@ function verifyBitbankerSign(
   }
 
   try {
-    const signData = `${currency}${amount}${header}${description}`;
+    // Форматируем amount как строку
+    const amountStr =
+      typeof amount === 'number'
+        ? Number.isInteger(amount)
+          ? amount.toString()
+          : amount.toFixed(2)
+        : amount;
+    const signData = `${currency}${amountStr}${header}${description}`;
     const expectedSign = crypto.createHmac('sha256', apiKey).update(signData).digest('hex');
 
     return crypto.timingSafeEqual(Buffer.from(receivedSign), Buffer.from(expectedSign));
@@ -114,15 +128,21 @@ export async function POST(request: NextRequest) {
       console.log('Verifying webhook signature...');
 
       // Попробуем верифицировать с данными из data если есть
+      // ВАЖНО: используем те же данные что при создании счёта!
       if (body.data?.coins) {
         const currency = body.currency || 'USDT';
         const amount = body.data.coins;
-        const header = 'Дед Мороз AI';
-        const description = `Пополнение баланса на ${amount} Койнов для ${body.data.user_email || 'unknown'}`;
+        // Используем те же header и description что при создании счёта
+        const header = 'Prizmabox';
+        const description =
+          "Payment for online platform services (top-up of the user's internal account balance)";
+
+        // Форматируем amount так же как при создании
+        const amountStr = Number.isInteger(amount) ? amount.toString() : amount.toFixed(2);
 
         const isValidSign2 = verifyBitbankerWebhookSign(
           currency,
-          amount,
+          amountStr,
           header,
           description,
           body.sign_2,
@@ -131,11 +151,28 @@ export async function POST(request: NextRequest) {
 
         const isValidSign =
           body.sign && BITBANKER_API_KEY
-            ? verifyBitbankerSign(currency, amount, header, description, body.sign, BITBANKER_API_KEY)
+            ? verifyBitbankerSign(
+                currency,
+                amountStr,
+                header,
+                description,
+                body.sign,
+                BITBANKER_API_KEY
+              )
             : false;
 
         if (!isValidSign2 && !isValidSign) {
-          console.warn('Webhook signature verification failed, but proceeding (may need adjustment)');
+          console.warn(
+            'Webhook signature verification failed, but proceeding (may need adjustment)'
+          );
+          console.log('Verification details:', {
+            currency,
+            amount: amountStr,
+            header,
+            description,
+            hasSign: !!body.sign,
+            hasSign2: !!body.sign_2,
+          });
           // В продакшене здесь можно вернуть ошибку:
           // return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
         } else {
