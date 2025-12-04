@@ -62,6 +62,7 @@ export default function AdminPage() {
   const [settings, setSettings] = useState({
     emailVerificationRequired: false,
     agreementText: "",
+    contactsText: "",
   });
   const [settingsSaving, setSettingsSaving] = useState(false);
 
@@ -122,6 +123,7 @@ export default function AdminPage() {
         setSettings({
           emailVerificationRequired: data.settings.email_verification_required === "1",
           agreementText: data.settings.user_agreement_text || "",
+          contactsText: data.settings.contacts_text || "",
         });
       }
     } catch (error) {
@@ -483,7 +485,10 @@ export default function AdminPage() {
                                     href={`/admin/users/${invoice.user_id}`}
                                     className="text-[#ffd700] hover:text-[#ffed4e] transition-colors font-semibold"
                                   >
-                                    {invoice.nickname || invoice.email || `ID: ${invoice.user_id}`}
+                                    {invoice.nickname ||
+                                     (invoice.first_name && invoice.last_name ? `${invoice.first_name} ${invoice.last_name}` : null) ||
+                                     invoice.email ||
+                                     `ID: ${invoice.user_id}`}
                                   </Link>
                                 </td>
                                 <td className="py-4 pr-4 text-[#ffd700] font-bold">
@@ -593,6 +598,25 @@ export default function AdminPage() {
                     className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] resize-none"
                     placeholder="Введите текст соглашения..."
                   />
+                </div>
+
+                {/* Контакты */}
+                <div>
+                  <label className="block text-white font-semibold mb-2">
+                    Контакты (поддерживается HTML)
+                  </label>
+                  <textarea
+                    value={settings.contactsText}
+                    onChange={(e) =>
+                      setSettings({ ...settings, contactsText: e.target.value })
+                    }
+                    rows={10}
+                    className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] resize-none"
+                    placeholder="Введите контактную информацию (можно использовать HTML, например: &lt;a href=&quot;https://t.me/username&quot;&gt;Telegram&lt;/a&gt;)"
+                  />
+                  <p className="text-[#a8d8ea]/60 text-sm mt-2">
+                    Поддерживается HTML разметка. Например: &lt;a href="https://t.me/username"&gt;Telegram&lt;/a&gt;
+                  </p>
                 </div>
 
                 <button

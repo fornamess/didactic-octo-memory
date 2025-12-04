@@ -337,11 +337,18 @@ export default function Home() {
           <p className="mb-1 sm:mb-2">
             Видео создаётся с помощью технологии искусственного интеллекта Sora 2
           </p>
-          <p>Сделано с ❤️ для волшебных новогодних праздников © 2024-2025</p>
+          <p className="mb-2 sm:mb-3">Сделано с ❤️ для волшебных новогодних праздников © 2024-2025</p>
+          <Link
+            href="/contacts"
+            className="inline-flex items-center gap-2 text-[#a8d8ea]/60 hover:text-[#a8d8ea] transition-colors"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Контакты
+          </Link>
           {user?.email?.endsWith('@admin.com') && (
             <Link
               href="/admin"
-              className="inline-flex items-center gap-2 text-[#ffd700]/60 hover:text-[#ffd700] mt-4"
+              className="inline-flex items-center gap-2 text-[#ffd700]/60 hover:text-[#ffd700] mt-4 ml-4"
             >
               <Shield className="w-4 h-4" />
               Админ-панель

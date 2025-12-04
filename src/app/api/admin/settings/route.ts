@@ -18,12 +18,14 @@ export async function GET(request: NextRequest) {
 
     const emailVerificationRequired = await getSetting('email_verification_required');
     const userAgreementText = await getSetting('user_agreement_text');
+    const contactsText = await getSetting('contacts_text');
 
     return NextResponse.json({
       success: true,
       settings: {
         email_verification_required: emailVerificationRequired,
         user_agreement_text: userAgreementText,
+        contacts_text: contactsText,
       },
     });
   } catch (error) {
@@ -45,10 +47,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Доступ запрещён' }, { status: 403 });
     }
 
-    const { emailVerificationRequired, agreementText } = await request.json();
+    const { emailVerificationRequired, agreementText, contactsText } = await request.json();
 
     await setSetting('email_verification_required', emailVerificationRequired ? '1' : '0');
     await setSetting('user_agreement_text', agreementText || '');
+    await setSetting('contacts_text', contactsText || '');
 
     return NextResponse.json({ success: true });
   } catch (error) {
