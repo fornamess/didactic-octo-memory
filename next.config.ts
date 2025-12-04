@@ -82,6 +82,22 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
   },
+
+  // Оптимизация компиляции
+  compiler: {
+    removeConsole:
+      process.env.NODE_ENV === 'production'
+        ? {
+            exclude: ['error', 'warn'],
+          }
+        : false,
+  },
+
+  // Оптимизация загрузки
+  poweredByHeader: false,
+
+  // Оптимизация production builds
+  productionBrowserSourceMaps: false,
 };
 
 export default nextConfig;

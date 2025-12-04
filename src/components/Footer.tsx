@@ -2,27 +2,30 @@
 
 import { ArrowRight, FileText, Gift, Info, MessageCircle, Shield, User } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Footer() {
-  const [user] = useState<{
+  const [user, setUser] = useState<{
     id: number;
     email: string;
     nickname?: string;
     balance?: number;
-  } | null>(() => {
+  } | null>(null);
+
+  // Загружаем пользователя из localStorage только на клиенте после монтирования
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const userData = localStorage.getItem('user');
       if (userData) {
         try {
-          return JSON.parse(userData);
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
         } catch {
-          return null;
+          setUser(null);
         }
       }
     }
-    return null;
-  });
+  }, []);
 
   return (
     <footer className="relative z-10 py-8 sm:py-12 mt-8 sm:mt-12 border-t border-white/10 bg-black/20">

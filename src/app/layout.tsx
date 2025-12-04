@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 // import { Nunito, Marck_Script } from 'next/font/google';
-import { BASE_URL } from '@/lib/config';
 import Footer from '@/components/Footer';
+import { BASE_URL } from '@/lib/config';
 import './globals.css';
 
 // Временно отключены Google Fonts для сборки в Docker
@@ -24,6 +25,33 @@ const siteName = 'Видео-поздравления от Деда Мороза
 const siteDescription =
   'Персональное видео-поздравление от Деда Мороза для вашего ребёнка. AI генерация, имя ребёнка, ваши фото. Бесплатно!';
 const siteUrl = BASE_URL;
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: siteName,
+  description: siteDescription,
+  url: siteUrl,
+  applicationCategory: 'MultimediaApplication',
+  operatingSystem: 'Web',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'RUB',
+  },
+  aggregateRating: {
+    '@type': 'AggregateRating',
+    ratingValue: '5',
+    ratingCount: '1',
+  },
+  featureList: [
+    'Персонализированные видео-поздравления',
+    'Использование имени ребёнка',
+    'Загрузка фотографий',
+    'AI генерация с помощью Sora 2',
+    'HD качество видео',
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -101,6 +129,9 @@ export const metadata: Metadata = {
     // google: 'your-google-verification-code',
     // yandex: 'your-yandex-verification-code',
   },
+  other: {
+    'dns-prefetch': siteUrl,
+  },
 };
 
 export default function RootLayout({
@@ -108,49 +139,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const structuredData = {
-    '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    name: siteName,
-    description: siteDescription,
-    url: siteUrl,
-    applicationCategory: 'MultimediaApplication',
-    operatingSystem: 'Web',
-    offers: {
-      '@type': 'Offer',
-      price: '0',
-      priceCurrency: 'RUB',
-    },
-    aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '5',
-      ratingCount: '1',
-    },
-    featureList: [
-      'Персонализированные видео-поздравления',
-      'Использование имени ребёнка',
-      'Загрузка фотографий',
-      'AI генерация с помощью Sora 2',
-      'HD качество видео',
-    ],
-  };
-
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
       <head>
-        {/* Preconnect для ускорения загрузки внешних ресурсов */}
         <link rel="preconnect" href={siteUrl} />
         <link rel="dns-prefetch" href={siteUrl} />
-
-        {/* Structured Data */}
-        <script
+      </head>
+      <body className="antialiased" suppressHydrationWarning>
+        {children}
+        <Footer />
+        <Script
+          id="structured-data"
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
-      </head>
-      <body className="antialiased">
-        {children}
-        <Footer />
       </body>
     </html>
   );

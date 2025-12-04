@@ -5,13 +5,9 @@ import { motion } from 'framer-motion';
 import {
   ArrowRight,
   Coins,
-  FileText,
   Gift,
   Heart,
-  Info,
   LogIn,
-  MessageCircle,
-  Shield,
   Sparkles,
   Star,
   TreePine,
@@ -24,30 +20,35 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 const Snowfall = lazy(() => import('@/components/Snowfall'));
 
 export default function Home() {
-  // Инициализируем пользователя синхронно из localStorage (не блокирует рендеринг)
+  // Инициализируем пользователя как null, чтобы избежать hydration mismatch
   const [user, setUser] = useState<{
     id: number;
     email: string;
     nickname?: string;
     balance?: number;
-  } | null>(() => {
+  } | null>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  // Загружаем пользователя из localStorage только на клиенте после монтирования
+  useEffect(() => {
+    setIsClient(true);
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       const userData = localStorage.getItem('user');
       if (token && userData) {
         try {
-          return JSON.parse(userData);
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
         } catch {
-          return null;
+          setUser(null);
         }
       }
     }
-    return null;
-  });
+  }, []);
 
   // Обновляем баланс асинхронно после рендера (не блокирует)
   useEffect(() => {
-    if (user?.id && typeof window !== 'undefined') {
+    if (isClient && user?.id && typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
       if (token) {
         // Загружаем баланс с небольшой задержкой для приоритизации критического контента
@@ -73,7 +74,7 @@ export default function Home() {
         return () => clearTimeout(timeoutId);
       }
     }
-  }, [user?.id]); // Зависим только от ID пользователя, а не от всего объекта
+  }, [isClient, user?.id]); // Зависим только от ID пользователя, а не от всего объекта
 
   return (
     <main className="min-h-screen relative overflow-hidden">
