@@ -22,6 +22,8 @@ import {
   DollarSign,
   Calendar,
   Filter,
+  Plus,
+  X,
 } from "lucide-react";
 
 interface User {
@@ -51,6 +53,9 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"users" | "settings" | "finances">("users");
   const [users, setUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [topupModal, setTopupModal] = useState<{ userId: number; nickname: string } | null>(null);
+  const [topupAmount, setTopupAmount] = useState("");
+  const [topupLoading, setTopupLoading] = useState(false);
 
   // Финансы
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -192,6 +197,43 @@ export default function AdminPage() {
         minute: "2-digit",
       }),
     };
+  };
+
+  const handleTopup = async () => {
+    if (!topupModal) return;
+    const amount = parseFloat(topupAmount);
+    if (!amount || amount <= 0) {
+      alert("Введите корректную сумму");
+      return;
+    }
+
+    setTopupLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/users/${topupModal.userId}/topup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amount }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        alert(`Баланс пользователя ${topupModal.nickname} успешно пополнен на ${amount} Койнов`);
+        setTopupModal(null);
+        setTopupAmount("");
+        loadUsers();
+      } else {
+        alert(data.error || "Ошибка пополнения баланса");
+      }
+    } catch (error) {
+      console.error("Topup error:", error);
+      alert("Ошибка пополнения баланса");
+    } finally {
+      setTopupLoading(false);
+    }
   };
 
   const loadInvoices = async () => {
@@ -348,6 +390,7 @@ export default function AdminPage() {
                         <th className="pb-3 pr-4">Пользователь</th>
                         <th className="pb-3 pr-4">Баланс</th>
                         <th className="pb-3 pr-4">Заказов</th>
+                        <th className="pb-3 pr-4">Действия</th>
                         <th className="pb-3"></th>
                       </tr>
                     </thead>
@@ -355,10 +398,12 @@ export default function AdminPage() {
                       {users.map((user) => (
                         <tr
                           key={user.id}
-                          className="border-b border-white/5 hover:bg-white/5 cursor-pointer"
-                          onClick={() => router.push(`/admin/users/${user.id}`)}
+                          className="border-b border-white/5 hover:bg-white/5"
                         >
-                          <td className="py-4 pr-4">
+                          <td
+                            className="py-4 pr-4 cursor-pointer"
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                          >
                             <div>
                               <p className="text-white font-semibold">
                                 {user.nickname}
@@ -368,7 +413,10 @@ export default function AdminPage() {
                               </p>
                             </div>
                           </td>
-                          <td className="py-4 pr-4">
+                          <td
+                            className="py-4 pr-4 cursor-pointer"
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                          >
                             <span className="text-[#ffd700] font-bold">
                               {user.balance}
                             </span>
@@ -376,10 +424,29 @@ export default function AdminPage() {
                               Койнов
                             </span>
                           </td>
-                          <td className="py-4 pr-4 text-[#a8d8ea]">
+                          <td
+                            className="py-4 pr-4 text-[#a8d8ea] cursor-pointer"
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                          >
                             {user.orders_count}
                           </td>
-                          <td className="py-4">
+                          <td className="py-4 pr-4">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTopupModal({ userId: user.id, nickname: user.nickname });
+                              }}
+                              className="btn-magic px-3 py-1.5 rounded-lg text-white text-sm flex items-center gap-2 hover:scale-105 transition-transform"
+                              title="Пополнить баланс"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Пополнить
+                            </button>
+                          </td>
+                          <td
+                            className="py-4 cursor-pointer"
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                          >
                             <ChevronRight className="w-5 h-5 text-[#a8d8ea]/40" />
                           </td>
                         </tr>
@@ -636,6 +703,74 @@ export default function AdminPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Модальное окно пополнения баланса */}
+      {topupModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="card-festive rounded-3xl p-6 max-w-md w-full"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white">
+                Пополнить баланс: {topupModal.nickname}
+              </h3>
+              <button
+                onClick={() => {
+                  setTopupModal(null);
+                  setTopupAmount("");
+                }}
+                className="text-[#a8d8ea]/60 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-[#a8d8ea] text-sm mb-2">
+                Сумма (Койнов)
+              </label>
+              <input
+                type="number"
+                value={topupAmount}
+                onChange={(e) => setTopupAmount(e.target.value)}
+                min="1"
+                step="1"
+                placeholder="Введите сумму"
+                className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff]"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleTopup}
+                disabled={topupLoading || !topupAmount}
+                className="btn-magic flex-1 px-4 py-3 rounded-xl text-white flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {topupLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Пополнить
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setTopupModal(null);
+                  setTopupAmount("");
+                }}
+                className="glass px-4 py-3 rounded-xl text-[#a8d8ea] hover:bg-white/10 transition-colors"
+              >
+                Отмена
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </main>
   );
 }
