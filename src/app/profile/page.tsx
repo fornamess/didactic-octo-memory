@@ -74,6 +74,19 @@ export default function ProfilePage() {
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
   });
+
+  // Принудительное обновление заказов при переходе из создания заказа
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const refreshFlag = sessionStorage.getItem('refreshOrders');
+      if (refreshFlag === 'true') {
+        sessionStorage.removeItem('refreshOrders');
+        // Принудительно обновляем заказы
+        mutateOrders();
+        console.log('[PROFILE] Forcing orders refresh after order creation');
+      }
+    }
+  }, [mutateOrders]);
   const { data: balanceData, mutate: mutateBalance } = useSWR('/api/user/balance', {
     revalidateOnFocus: false,
   });
@@ -84,7 +97,10 @@ export default function ProfilePage() {
   // Обновляем локальное состояние при изменении данных SWR
   useEffect(() => {
     if (ordersData?.orders) {
+      console.log('[PROFILE] Orders loaded:', ordersData.orders.length, ordersData.orders);
       setOrders(ordersData.orders);
+    } else if (ordersData && !ordersData.orders) {
+      console.log('[PROFILE] No orders in response:', ordersData);
     }
   }, [ordersData]);
 

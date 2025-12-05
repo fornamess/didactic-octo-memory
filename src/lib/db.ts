@@ -353,6 +353,22 @@ export async function getUserOrders(userId: number, limit: number = 50) {
     [userId, limit]
   );
   db.close();
+
+  // Логируем только если заказов нет, но должны быть
+  if (orders.length === 0) {
+    // Проверяем есть ли вообще заказы в БД
+    const db2 = await getDb();
+    const allOrders = await all(
+      db2,
+      'SELECT id, user_id, order_number FROM orders ORDER BY id DESC LIMIT 5'
+    );
+    db2.close();
+    console.log(
+      `[DB] getUserOrders: No orders found for user_id ${userId}. Last 5 orders in DB:`,
+      allOrders.map((o) => ({ id: o.id, user_id: o.user_id, order_number: o.order_number }))
+    );
+  }
+
   return orders;
 }
 
