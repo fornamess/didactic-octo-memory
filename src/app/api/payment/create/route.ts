@@ -140,19 +140,32 @@ export async function POST(request: NextRequest) {
         });
 
         const responseText = await bitbankerResponse.text();
+        console.log('Bitbanker response status:', bitbankerResponse.status);
         console.log('Bitbanker response:', responseText);
+
+        // Проверяем статус ответа
+        if (!bitbankerResponse.ok) {
+          if (bitbankerResponse.status === 401) {
+            console.error(
+              'Bitbanker API: Unauthorized - проверьте BITBANKER_API_KEY и BITBANKER_SECRET'
+            );
+            throw new Error('Ошибка авторизации в платёжной системе. Обратитесь к администратору.');
+          }
+          throw new Error(`Bitbanker API error: ${bitbankerResponse.status} ${responseText}`);
+        }
 
         let invoiceData: BitbankerInvoiceResponse;
         try {
           invoiceData = JSON.parse(responseText) as BitbankerInvoiceResponse;
         } catch {
           console.error('Failed to parse Bitbanker response:', responseText);
-          throw new Error('Invalid Bitbanker response');
+          throw new Error('Неверный ответ от платёжной системы');
         }
 
         if (invoiceData.result !== 'success') {
           console.error('Bitbanker API error:', invoiceData);
-          const errorMessage = invoiceData.message || invoiceData.code || 'Bitbanker API error';
+          const errorMessage =
+            invoiceData.message || invoiceData.code || 'Ошибка платёжной системы';
           throw new Error(errorMessage);
         }
 

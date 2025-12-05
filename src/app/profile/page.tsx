@@ -75,7 +75,9 @@ export default function ProfilePage() {
     revalidateOnReconnect: true,
   });
   const { data: balanceData, mutate: mutateBalance } = useSWR('/api/user/balance', {
-    revalidateOnFocus: false,
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    refreshInterval: 30000, // Автообновление каждые 30 секунд
   });
   const { data: transactionsData } = useSWR('/api/user/transactions', {
     revalidateOnFocus: false,
@@ -89,10 +91,27 @@ export default function ProfilePage() {
   }, [ordersData]);
 
   useEffect(() => {
-    if (balanceData?.balance !== undefined && user) {
-      setUser((prev) => (prev ? { ...prev, balance: balanceData.balance } : null));
+    if (balanceData?.balance !== undefined) {
+      setUser((prev) => {
+        if (prev) {
+          return { ...prev, balance: balanceData.balance };
+        }
+        // Если user еще не загружен, но баланс получен, обновим когда user загрузится
+        return prev;
+      });
     }
-  }, [balanceData, user]);
+  }, [balanceData]);
+
+  // Автообновление баланса каждые 30 секунд
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(() => {
+      mutateBalance();
+    }, 30000); // Обновляем каждые 30 секунд
+
+    return () => clearInterval(interval);
+  }, [user, mutateBalance]);
 
   useEffect(() => {
     if (transactionsData?.transactions) {
@@ -183,10 +202,14 @@ export default function ProfilePage() {
       return;
     }
 
-    setUser(JSON.parse(userData));
+    const parsedUser = JSON.parse(userData);
+    setUser(parsedUser);
     // Токен теперь в httpOnly cookie, отправляется автоматически
     loadData();
-  }, [router]);
+
+    // Обновляем баланс сразу после загрузки пользователя
+    mutateBalance();
+  }, [router, mutateBalance]);
 
   const loadData = async () => {
     try {
@@ -251,16 +274,22 @@ export default function ProfilePage() {
 
       const data = await response.json();
 
+      if (!response.ok) {
+        throw new Error(data.error || 'Ошибка создания платежа');
+      }
+
       if (data.invoiceUrl) {
         // Открываем страницу оплаты
         window.open(data.invoiceUrl, '_blank');
         setShowTopupModal(false);
+        // Обновляем баланс после создания платежа (на случай если был демо-режим)
+        setTimeout(() => mutateBalance(), 1000);
       } else {
         alert(data.error || 'Ошибка создания платежа');
       }
     } catch (error) {
       console.error('Topup error:', error);
-      alert('Ошибка создания платежа');
+      alert(error instanceof Error ? error.message : 'Ошибка создания платежа');
     } finally {
       setTopupLoading(false);
     }
