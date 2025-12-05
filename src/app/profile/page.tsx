@@ -133,8 +133,33 @@ export default function ProfilePage() {
 
     if (!hasPendingOrders) return;
 
-    const interval = setInterval(() => {
-      loadOrders();
+    const interval = setInterval(async () => {
+      // Проверяем статусы всех pending заказов
+      const pendingOrders = orders.filter(
+        (o) => o.status === 'pending' || o.status === 'in queue' || o.status === 'in progress'
+      );
+
+      // Проверяем статусы параллельно
+      await Promise.all(
+        pendingOrders.map(async (order) => {
+          if (!order.taskId) return;
+
+          try {
+            const response = await fetch('/api/videos/check-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ taskId: order.taskId, orderId: order.id }),
+            });
+
+            if (response.ok) {
+              // После проверки обновляем список заказов
+              await loadOrders();
+            }
+          } catch (error) {
+            console.error(`Error checking status for order ${order.id}:`, error);
+          }
+        })
+      );
     }, 10000); // Каждые 10 секунд
 
     return () => clearInterval(interval);
