@@ -1,0 +1,19 @@
+{
+  "name": "Видео-поздравления от Деда Мороза",
+  "short_name": "Дед Мороз AI",
+  "description": "Персональные видео-поздравления от Деда Мороза с использованием AI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c1929",
+  "theme_color": "#c41e3a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["entertainment", "multimedia"],
+  "lang": "ru"
+}

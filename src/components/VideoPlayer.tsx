@@ -120,7 +120,7 @@ export default function VideoPlayer({ videoUrl, childName }: VideoPlayerProps) {
           <div className="text-center p-6">
             <span className="text-4xl mb-4 block">❌</span>
             <p className="text-red-400 font-semibold mb-2">Не удалось загрузить видео</p>
-            <p className="text-[#a8d8ea]/60 text-sm mb-4">Попробуйте скачать видео напрямую</p>
+            <p className="text-[#a8d8ea]/90 text-sm mb-4">Попробуйте скачать видео напрямую</p>
             <a
               href={videoUrl}
               target="_blank"
@@ -184,27 +184,27 @@ export default function VideoPlayer({ videoUrl, childName }: VideoPlayerProps) {
             <button
               onClick={togglePlay}
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-              title={isPlaying ? "Пауза" : "Воспроизвести"}
+              aria-label={isPlaying ? "Приостановить воспроизведение" : "Воспроизвести видео"}
             >
               {isPlaying ? (
-                <Pause className="w-5 h-5 text-white" />
+                <Pause className="w-5 h-5 text-white" aria-hidden="true" />
               ) : (
-                <Play className="w-5 h-5 text-white" fill="white" />
+                <Play className="w-5 h-5 text-white" fill="white" aria-hidden="true" />
               )}
             </button>
 
             <button
               onClick={handleReplay}
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-              title="Сначала"
+              aria-label="Перемотать в начало"
             >
-              <RotateCcw className="w-5 h-5 text-white" />
+              <RotateCcw className="w-5 h-5 text-white" aria-hidden="true" />
             </button>
 
             <button
               onClick={toggleMute}
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-              title={isMuted ? "Включить звук" : "Выключить звук"}
+              aria-label={isMuted ? "Включить звук" : "Выключить звук"}
             >
               {isMuted ? (
                 <VolumeX className="w-5 h-5 text-white" />
@@ -222,7 +222,7 @@ export default function VideoPlayer({ videoUrl, childName }: VideoPlayerProps) {
             <button
               onClick={toggleFullscreen}
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-              title="Полный экран"
+              aria-label="Переключить полноэкранный режим"
             >
               <Maximize className="w-5 h-5 text-white" />
             </button>

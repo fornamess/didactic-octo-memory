@@ -71,9 +71,11 @@ export default function LoginPage() {
         throw new Error(data.error || 'Ошибка');
       }
 
-      // Сохраняем токен
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Токен теперь хранится в httpOnly cookie, не нужно сохранять в localStorage
+      // Сохраняем только данные пользователя для UI
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
 
       // Перенаправляем на главную
       router.push('/');
@@ -205,7 +207,7 @@ export default function LoginPage() {
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 placeholder="••••••••"
                 required
-                minLength={6}
+                minLength={10}
                 disabled={loading}
                 className="input-magic w-full px-4 py-3 pr-12 rounded-xl text-[#f0f8ff] disabled:opacity-50"
               />
@@ -231,7 +233,7 @@ export default function LoginPage() {
                   onChange={(e) => setFormData({ ...formData, password2: e.target.value })}
                   placeholder="••••••••"
                   required={!isLogin}
-                  minLength={6}
+                  minLength={10}
                   disabled={loading}
                   className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] disabled:opacity-50"
                 />

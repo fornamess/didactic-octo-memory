@@ -2,6 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Skip link для accessibility (A11Y-005) */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 100;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.focus\:not-sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
 :root {
   --background: #0c1929;
   --foreground: #e8f4fc;
@@ -11,6 +51,7 @@
   --gold: #ffd700;
   --snow: #f0f8ff;
   --ice: #a8d8ea;
+  --ice-light: #c8e8fa; /* Более светлый для лучшего контраста (A11Y-004) */
   --forest: #0d4f2b;
 }
 

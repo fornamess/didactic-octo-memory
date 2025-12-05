@@ -1,34 +1,28 @@
 'use client';
 
+import OrderList from '@/components/profile/OrderList';
+import TopupModal from '@/components/profile/TopupModal';
+import useSWR from '@/lib/swr-config';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
   CheckCircle,
   Clock,
   Coins,
-  Download,
   ExternalLink,
   History,
   Loader,
   LogOut,
-  Mail,
   MessageCircle,
-  Play,
   Plus,
   RefreshCw,
-  Send,
   User,
   X,
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
-
-interface SupportContacts {
-  telegram: string;
-  email: string;
-}
+import { useEffect, useRef, useState } from 'react';
 
 interface Order {
   id: number;
@@ -66,175 +60,138 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'orders' | 'balance' | 'support'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'balance'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupAmount, setTopupAmount] = useState(10);
   const [topupLoading, setTopupLoading] = useState(false);
   const [selectedCrypto, setSelectedCrypto] = useState<string[]>(['USDT', 'BTC', 'ETH', 'TRX']);
   const [checkingStatus, setCheckingStatus] = useState(false);
-  const [supportContacts, setSupportContacts] = useState<SupportContacts>({
-    telegram: '@support',
-    email: 'support@example.com',
+  const eventSourcesRef = useRef<Map<number, EventSource>>(new Map());
+
+  // Используем SWR для загрузки данных (IMP-001)
+  const { data: ordersData, mutate: mutateOrders } = useSWR('/api/videos/history', {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
+  });
+  const { data: balanceData, mutate: mutateBalance } = useSWR('/api/user/balance', {
+    revalidateOnFocus: false,
+  });
+  const { data: transactionsData } = useSWR('/api/user/transactions', {
+    revalidateOnFocus: false,
   });
 
-  // Загрузка контактов поддержки
+  // Обновляем локальное состояние при изменении данных SWR
   useEffect(() => {
-    fetch('/api/settings/support')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.telegram && data.email) {
-          setSupportContacts(data);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (ordersData?.orders) {
+      setOrders(ordersData.orders);
+    }
+  }, [ordersData]);
 
-  // Проверка статуса генерации для pending заказов
-  const checkPendingOrders = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+  useEffect(() => {
+    if (balanceData?.balance !== undefined && user) {
+      setUser((prev) => (prev ? { ...prev, balance: balanceData.balance } : null));
+    }
+  }, [balanceData, user]);
 
+  useEffect(() => {
+    if (transactionsData?.transactions) {
+      setTransactions(transactionsData.transactions);
+    }
+  }, [transactionsData]);
+
+  // SSE для real-time обновления статуса заказов (PRF-003)
+  useEffect(() => {
     const pendingOrders = orders.filter(
       (o) =>
         o.taskId &&
         (o.status === 'pending' || o.status === 'in queue' || o.status === 'in progress')
     );
 
-    if (pendingOrders.length === 0) return;
-
-    setCheckingStatus(true);
-
-    for (const order of pendingOrders) {
-      try {
-        const response = await fetch(`/api/check-status?taskId=${order.taskId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await response.json();
-
-        if (data.isCompleted && data.videoUrl) {
-          // Обновляем заказ в списке
-          setOrders((prev) =>
-            prev.map((o) =>
-              o.id === order.id
-                ? {
-                    ...o,
-                    status: 'completed',
-                    statusDescription: 'Видео готово',
-                    videoUrl: data.videoUrl,
-                  }
-                : o
-            )
-          );
-        } else if (data.isFailed && !data.introReady) {
-          // Если intro ещё не готов, не помечаем как ошибку - продолжаем ждать
-          console.log('Personal failed but intro not ready, continuing...');
-        } else if (data.isFailed) {
-          setOrders((prev) =>
-            prev.map((o) =>
-              o.id === order.id
-                ? {
-                    ...o,
-                    status: data.statusDescription || 'error',
-                    statusDescription: data.error || 'Ошибка генерации',
-                  }
-                : o
-            )
-          );
-        } else if (data.statusDescription) {
-          // Обновляем статус
-          setOrders((prev) =>
-            prev.map((o) =>
-              o.id === order.id
-                ? {
-                    ...o,
-                    status: data.statusDescription,
-                    statusDescription: data.statusDescription,
-                  }
-                : o
-            )
-          );
-        }
-      } catch (error) {
-        console.error('Check status error:', error);
+    // Закрываем старые соединения для заказов, которые больше не pending
+    eventSourcesRef.current.forEach((eventSource, orderId) => {
+      const order = orders.find((o) => o.id === orderId);
+      if (
+        !order ||
+        !order.taskId ||
+        (order.status !== 'pending' &&
+          order.status !== 'in queue' &&
+          order.status !== 'in progress')
+      ) {
+        eventSource.close();
+        eventSourcesRef.current.delete(orderId);
       }
-    }
+    });
 
-    setCheckingStatus(false);
-  }, [orders]);
+    // Создаем SSE соединения для новых pending заказов
+    pendingOrders.forEach((order) => {
+      if (!eventSourcesRef.current.has(order.id)) {
+        const eventSource = new EventSource(`/api/status/${order.id}/stream`);
+
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            setOrders((prev) =>
+              prev.map((o) =>
+                o.id === order.id
+                  ? {
+                      ...o,
+                      status: data.status,
+                      statusDescription: data.statusDescription,
+                      videoUrl: data.videoUrl || o.videoUrl,
+                    }
+                  : o
+              )
+            );
+
+            // Обновляем данные в SWR кэше
+            mutateOrders();
+
+            // Если заказ завершен, закрываем соединение
+            if (data.completed || data.failed) {
+              eventSource.close();
+              eventSourcesRef.current.delete(order.id);
+            }
+          } catch (error) {
+            console.error('Failed to parse SSE message:', error);
+          }
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+          eventSourcesRef.current.delete(order.id);
+        };
+
+        eventSourcesRef.current.set(order.id, eventSource);
+      }
+    });
+
+    // Cleanup при размонтировании
+    return () => {
+      eventSourcesRef.current.forEach((eventSource) => {
+        eventSource.close();
+      });
+      eventSourcesRef.current.clear();
+    };
+  }, [orders, mutateOrders]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
 
-    if (!token || !userData) {
+    if (!userData) {
       router.push('/login');
       return;
     }
 
     setUser(JSON.parse(userData));
-    loadData(token);
+    // Токен теперь в httpOnly cookie, отправляется автоматически
+    loadData();
   }, [router]);
 
-  // Первоначальная проверка статуса после загрузки заказов
-  useEffect(() => {
-    if (!loading && orders.length > 0) {
-      const hasPending = orders.some(
-        (o) =>
-          o.taskId &&
-          (o.status === 'pending' || o.status === 'in queue' || o.status === 'in progress')
-      );
-      if (hasPending) {
-        checkPendingOrders();
-      }
-    }
-  }, [loading, orders.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Автоматическая проверка статуса каждые 10 секунд
-  useEffect(() => {
-    const hasPending = orders.some(
-      (o) =>
-        o.taskId &&
-        (o.status === 'pending' || o.status === 'in queue' || o.status === 'in progress')
-    );
-
-    if (!hasPending) return;
-
-    const interval = setInterval(() => {
-      checkPendingOrders();
-    }, 10000); // 10 секунд
-
-    return () => clearInterval(interval);
-  }, [orders, checkPendingOrders]);
-
-  const loadData = async (token: string) => {
+  const loadData = async () => {
     try {
-      // Загружаем заказы
-      const ordersRes = await fetch('/api/videos/history', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const ordersData = await ordersRes.json();
-      if (ordersData.orders) {
-        setOrders(ordersData.orders);
-      }
-
-      // Загружаем баланс
-      const balanceRes = await fetch('/api/user/balance', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const balanceData = await balanceRes.json();
-      if (balanceData.balance !== undefined) {
-        setUser((prev) => (prev ? { ...prev, balance: balanceData.balance } : null));
-      }
-
-      // Загружаем историю транзакций
-      const transactionsRes = await fetch('/api/user/transactions', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const transactionsData = await transactionsRes.json();
-      if (transactionsData.transactions) {
-        setTransactions(transactionsData.transactions);
-      }
+      // Данные загружаются через SWR, просто обновляем кэш
+      await Promise.all([mutateOrders(), mutateBalance()]);
     } catch (error) {
       console.error('Load data error:', error);
     } finally {
@@ -242,8 +199,10 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
+  const handleLogout = async () => {
+    // Вызываем API для удаления httpOnly cookie
+    await fetch('/api/auth/logout', { method: 'POST' });
+    // Удаляем данные пользователя из localStorage
     localStorage.removeItem('user');
     router.push('/');
     router.refresh();
@@ -251,10 +210,8 @@ export default function ProfilePage() {
 
   const handleDownload = async (taskId: number, childName: string) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/videos/download?taskId=${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const response = await fetch(`/api/videos/download?taskId=${taskId}`);
 
       if (response.ok) {
         const blob = await response.blob();
@@ -283,12 +240,11 @@ export default function ProfilePage() {
   const handleTopup = async () => {
     setTopupLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      // Токен теперь в httpOnly cookie, отправляется автоматически
       const response = await fetch('/api/payment/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ amount: topupAmount, paymentCurrency: selectedCrypto }),
       });
@@ -441,17 +397,13 @@ export default function ProfilePage() {
             <Coins className="w-5 h-5" />
             История пополнений
           </button>
-          <button
-            onClick={() => setActiveTab('support')}
-            className={`px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'support'
-                ? 'bg-[#c41e3a] text-white'
-                : 'glass text-[#a8d8ea] hover:bg-white/10'
-            }`}
+          <Link
+            href="/contacts"
+            className={`px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 whitespace-nowrap ${'glass text-[#a8d8ea] hover:bg-white/10'}`}
           >
             <MessageCircle className="w-5 h-5" />
             Тикеты
-          </button>
+          </Link>
         </div>
 
         {/* Контент табов */}
@@ -473,88 +425,19 @@ export default function ProfilePage() {
                       o.status === 'in queue' ||
                       o.status === 'in progress')
                 ) && (
-                  <button
-                    onClick={checkPendingOrders}
-                    disabled={checkingStatus}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-[#a8d8ea] transition-colors disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${checkingStatus ? 'animate-spin' : ''}`} />
-                    {checkingStatus ? 'Проверяем...' : 'Проверить статус'}
-                  </button>
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-[#a8d8ea]">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Обновление статуса...</span>
+                  </div>
                 )}
               </div>
 
-              {orders.length === 0 ? (
-                <div className="text-center py-10">
-                  <p className="text-[#a8d8ea]/60 mb-4">У вас пока нет заказов</p>
-                  <Link
-                    href="/service/ded-moroz"
-                    className="btn-magic px-6 py-3 rounded-xl text-white inline-flex items-center gap-2"
-                  >
-                    Создать первый заказ
-                  </Link>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-[#a8d8ea]/60 text-left border-b border-white/10">
-                        <th className="pb-3 pr-4">Номер</th>
-                        <th className="pb-3 pr-4">Название</th>
-                        <th className="pb-3 pr-4">Статус</th>
-                        <th className="pb-3 pr-4">Дата</th>
-                        <th className="pb-3"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.map((order) => (
-                        <tr key={order.id} className="border-b border-white/5 hover:bg-white/5">
-                          <td className="py-4 pr-4 text-[#ffd700] font-mono text-sm">
-                            {order.orderNumber}
-                          </td>
-                          <td className="py-4 pr-4">
-                            <div>
-                              <p className="text-white">{order.serviceName}</p>
-                              <p className="text-[#a8d8ea]/60 text-sm">для {order.childName}</p>
-                            </div>
-                          </td>
-                          <td className="py-4 pr-4">
-                            <span className="flex items-center gap-2">
-                              {getStatusIcon(order.status)}
-                              <span className="text-[#a8d8ea]">{getStatusText(order.status)}</span>
-                            </span>
-                          </td>
-                          <td className="py-4 pr-4 text-[#a8d8ea]/60">
-                            {formatDate(order.createdAt)}
-                          </td>
-                          <td className="py-4">
-                            <div className="flex gap-2">
-                              {order.videoUrl && (
-                                <>
-                                  <button
-                                    onClick={() => setSelectedOrder(order)}
-                                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-[#a8d8ea] transition-colors"
-                                    title="Смотреть"
-                                  >
-                                    <Play className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDownload(order.taskId, order.childName)}
-                                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-[#a8d8ea] transition-colors"
-                                    title="Скачать"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <OrderList
+                orders={orders}
+                onDownload={handleDownload}
+                onSelectOrder={setSelectedOrder}
+                checkingStatus={checkingStatus}
+              />
             </motion.div>
           )}
 
@@ -640,55 +523,6 @@ export default function ProfilePage() {
               )}
             </motion.div>
           )}
-
-          {activeTab === 'support' && (
-            <motion.div
-              key="support"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="card-festive rounded-3xl p-6"
-            >
-              <h2 className="text-xl font-bold text-white mb-6">Техническая поддержка</h2>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <a
-                  href={`https://t.me/${supportContacts.telegram.replace('@', '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="glass-dark p-6 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-4"
-                >
-                  <div className="w-14 h-14 rounded-full bg-[#0088cc] flex items-center justify-center">
-                    <Send className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-white font-semibold mb-1">Telegram</h3>
-                    <p className="text-[#a8d8ea]/60">{supportContacts.telegram}</p>
-                  </div>
-                </a>
-
-                <a
-                  href={`mailto:${supportContacts.email}`}
-                  className="glass-dark p-6 rounded-xl hover:bg-white/10 transition-colors flex items-center gap-4"
-                >
-                  <div className="w-14 h-14 rounded-full bg-[#c41e3a] flex items-center justify-center">
-                    <Mail className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-white font-semibold mb-1">Email</h3>
-                    <p className="text-[#a8d8ea]/60">{supportContacts.email}</p>
-                  </div>
-                </a>
-              </div>
-
-              <div className="mt-6 p-4 bg-white/5 rounded-xl">
-                <p className="text-[#a8d8ea]/80 text-sm">
-                  Мы отвечаем на все обращения в течение 24 часов. Для более быстрого ответа
-                  рекомендуем писать в Telegram.
-                </p>
-              </div>
-            </motion.div>
-          )}
         </AnimatePresence>
       </div>
 
@@ -727,116 +561,24 @@ export default function ProfilePage() {
       </AnimatePresence>
 
       {/* Модальное окно пополнения */}
-      <AnimatePresence>
-        {showTopupModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowTopupModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="card-festive rounded-3xl p-6 md:p-8 w-full max-w-md"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gradient font-display">Пополнить баланс</h2>
-                <button
-                  onClick={() => setShowTopupModal(false)}
-                  className="text-[#a8d8ea]/60 hover:text-white"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-[#a8d8ea] mb-2 font-semibold">Сумма пополнения</label>
-                <div className="flex gap-2 mb-4">
-                  {[5, 10, 20, 50].map((amount) => (
-                    <button
-                      key={amount}
-                      onClick={() => setTopupAmount(amount)}
-                      className={`flex-1 py-3 rounded-xl font-semibold transition-colors ${
-                        topupAmount === amount
-                          ? 'bg-[#ffd700] text-black'
-                          : 'glass text-[#a8d8ea] hover:bg-white/10'
-                      }`}
-                    >
-                      {amount}
-                    </button>
-                  ))}
-                </div>
-                <input
-                  type="number"
-                  min="1"
-                  value={topupAmount}
-                  onChange={(e) => setTopupAmount(parseInt(e.target.value) || 1)}
-                  className="input-magic w-full px-5 py-4 rounded-xl text-[#f0f8ff] text-lg"
-                />
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-[#a8d8ea] mb-2 font-semibold">Способ оплаты</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {['USDT', 'BTC', 'ETH', 'TRX', 'USDC', 'ATOM', 'AVAX', 'LTC'].map((crypto) => (
-                    <button
-                      key={crypto}
-                      onClick={() => {
-                        if (selectedCrypto.includes(crypto)) {
-                          if (selectedCrypto.length > 1) {
-                            setSelectedCrypto(selectedCrypto.filter((c) => c !== crypto));
-                          }
-                        } else {
-                          setSelectedCrypto([...selectedCrypto, crypto]);
-                        }
-                      }}
-                      className={`py-2 px-2 rounded-lg text-xs font-semibold transition-colors ${
-                        selectedCrypto.includes(crypto)
-                          ? 'bg-[#ffd700] text-black'
-                          : 'glass text-[#a8d8ea] hover:bg-white/10'
-                      }`}
-                    >
-                      {crypto}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[#a8d8ea]/40 text-xs mt-2">
-                  Выберите криптовалюты для оплаты (минимум одна)
-                </p>
-              </div>
-
-              <div className="bg-white/5 rounded-xl p-4 mb-6">
-                <div className="flex justify-between items-center">
-                  <span className="text-[#a8d8ea]">К оплате</span>
-                  <span className="text-2xl font-bold text-[#ffd700]">${topupAmount}</span>
-                </div>
-                <p className="text-[#a8d8ea]/60 text-sm mt-2">
-                  1 Койн = 1 USD. Оплата: {selectedCrypto.join(', ')}
-                </p>
-              </div>
-
-              <button
-                onClick={handleTopup}
-                disabled={topupLoading}
-                className="btn-magic w-full py-4 rounded-xl text-lg font-bold text-white flex items-center justify-center gap-3 disabled:opacity-50"
-              >
-                {topupLoading ? (
-                  <Loader className="w-6 h-6 animate-spin" />
-                ) : (
-                  <>
-                    <Coins className="w-6 h-6" />
-                    Перейти к оплате
-                  </>
-                )}
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <TopupModal
+        isOpen={showTopupModal}
+        onClose={() => setShowTopupModal(false)}
+        amount={topupAmount}
+        onAmountChange={setTopupAmount}
+        selectedCrypto={selectedCrypto}
+        onCryptoToggle={(crypto) => {
+          if (selectedCrypto.includes(crypto)) {
+            if (selectedCrypto.length > 1) {
+              setSelectedCrypto(selectedCrypto.filter((c) => c !== crypto));
+            }
+          } else {
+            setSelectedCrypto([...selectedCrypto, crypto]);
+          }
+        }}
+        onTopup={handleTopup}
+        loading={topupLoading}
+      />
     </main>
   );
 }

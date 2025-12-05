@@ -61,15 +61,8 @@ export default function UserDetailPage() {
 
   const checkAdminAccess = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const response = await fetch('/api/admin/check', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const response = await fetch('/api/admin/check');
 
       if (!response.ok) {
         router.push('/');
@@ -86,12 +79,10 @@ export default function UserDetailPage() {
 
   const loadUserData = async () => {
     try {
-      const token = localStorage.getItem('token');
-
+      // Токен теперь в httpOnly cookie, отправляется автоматически
       // Загружаем данные пользователя
-      const userRes = await fetch(`/api/admin/users/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const userRes = await fetch(`/api/admin/users/${userId}`);
       if (userRes.ok) {
         const userData = await userRes.json();
         if (userData.user) {
@@ -106,16 +97,14 @@ export default function UserDetailPage() {
       }
 
       // Загружаем заказы
-      const ordersRes = await fetch(`/api/admin/users/${userId}/orders`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const ordersRes = await fetch(`/api/admin/users/${userId}/orders`);
       const ordersData = await ordersRes.json();
       setUserOrders(ordersData.orders || []);
 
       // Загружаем транзакции
-      const transRes = await fetch(`/api/admin/users/${userId}/transactions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const transRes = await fetch(`/api/admin/users/${userId}/transactions`);
       const transData = await transRes.json();
       setUserTransactions(transData.transactions || []);
     } catch (error) {
@@ -142,12 +131,11 @@ export default function UserDetailPage() {
 
     setTopupLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      // Токен теперь в httpOnly cookie, отправляется автоматически
       const response = await fetch(`/api/admin/users/${userId}/topup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ amount }),
       });

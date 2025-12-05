@@ -23,6 +23,16 @@ export async function GET(
     // Полный путь к файлу
     const fullPath = path.join(VIDEO_STORAGE_PATH, filePath);
 
+    // Улучшенная валидация пути (SEC-007): проверяем что resolved путь находится внутри VIDEO_STORAGE_PATH
+    const resolvedPath = path.resolve(fullPath);
+    const resolvedStorage = path.resolve(VIDEO_STORAGE_PATH);
+
+    // Проверяем что resolved путь начинается с resolved storage path + разделитель
+    if (!resolvedPath.startsWith(resolvedStorage + path.sep) && resolvedPath !== resolvedStorage) {
+      console.log('Path traversal attempt detected:', { filePath, resolvedPath, resolvedStorage });
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     // Проверяем что файл существует
     if (!fs.existsSync(fullPath)) {
       console.log('Video file not found:', fullPath);
@@ -33,13 +43,6 @@ export async function GET(
     const stats = fs.statSync(fullPath);
     if (!stats.isFile()) {
       return NextResponse.json({ error: 'Not a file' }, { status: 400 });
-    }
-
-    // Проверяем что файл находится внутри VIDEO_STORAGE_PATH (безопасность)
-    const resolvedPath = path.resolve(fullPath);
-    const resolvedStorage = path.resolve(VIDEO_STORAGE_PATH);
-    if (!resolvedPath.startsWith(resolvedStorage)) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     // Проверяем срок действия видео (только для final видео)

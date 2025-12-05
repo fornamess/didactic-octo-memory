@@ -6,9 +6,25 @@
 import path from 'path';
 
 // === Безопасность ===
-// Используем fallback только если переменная не установлена или пустая
-export const JWT_SECRET =
-  process.env.JWT_SECRET?.trim() || 'your-super-secret-jwt-key-change-in-production-2024';
+// JWT_SECRET обязателен для работы приложения - без него приложение не запустится
+const rawJwtSecret = process.env.JWT_SECRET?.trim();
+
+if (!rawJwtSecret) {
+  throw new Error(
+    'JWT_SECRET environment variable is required but not set! ' +
+    'Please set JWT_SECRET in your environment variables. ' +
+    'For production, use a strong random string (at least 32 characters).'
+  );
+}
+
+if (rawJwtSecret.length < 32) {
+  throw new Error(
+    `JWT_SECRET must be at least 32 characters long. Current length: ${rawJwtSecret.length}. ` +
+    'Please use a stronger secret for production.'
+  );
+}
+
+export const JWT_SECRET = rawJwtSecret;
 
 // === API Yes AI (генерация видео) ===
 export const YES_AI_API_BASE = process.env.YES_AI_API_BASE || 'https://api.yesai.su/v2';

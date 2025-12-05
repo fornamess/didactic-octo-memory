@@ -32,13 +32,41 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return bcrypt.compare(password, hash);
 }
 
+// Получить токен из cookies или Authorization header (для обратной совместимости)
+export function getTokenFromRequest(
+  request: Request | { cookies?: { get: (name: string) => { value: string } | undefined } }
+): string | null {
+  // Сначала пробуем получить из cookies (приоритет)
+  // В Next.js App Router request.cookies имеет метод get()
+  if ('cookies' in request && request.cookies && typeof request.cookies === 'object') {
+    try {
+      const cookies = request.cookies as { get: (name: string) => { value: string } | undefined };
+      const tokenCookie = cookies.get('token');
+      if (tokenCookie?.value) {
+        return tokenCookie.value;
+      }
+    } catch {
+      // Если cookies недоступны, продолжаем проверку Authorization header
+    }
+  }
+
+  // Fallback на Authorization header для обратной совместимости
+  if ('headers' in request && request.headers) {
+    const authHeader = (request.headers as Headers).get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.substring(7);
+    }
+  }
+
+  return null;
+}
+
 // Получить пользователя из токена (для middleware)
 export function getUserFromRequest(request: Request): UserPayload | null {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const token = getTokenFromRequest(request);
+  if (!token) {
     return null;
   }
 
-  const token = authHeader.substring(7);
   return verifyToken(token);
 }

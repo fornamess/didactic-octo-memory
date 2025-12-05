@@ -1,30 +1,24 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Users,
-  Search,
-  Settings,
-  LogOut,
   ArrowLeft,
   ChevronRight,
-  Coins,
-  FileText,
-  History,
-  Save,
-  Eye,
-  EyeOff,
-  Loader,
-  Shield,
   DollarSign,
-  Calendar,
   Filter,
+  Loader,
+  LogOut,
   Plus,
+  Save,
+  Search,
+  Settings,
+  Shield,
+  Users,
   X,
-} from "lucide-react";
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 interface User {
   id: number;
@@ -50,25 +44,25 @@ export default function AdminPage() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"users" | "settings" | "finances">("users");
+  const [activeTab, setActiveTab] = useState<'users' | 'settings' | 'finances'>('users');
   const [users, setUsers] = useState<User[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [topupModal, setTopupModal] = useState<{ userId: number; nickname: string } | null>(null);
-  const [topupAmount, setTopupAmount] = useState("");
+  const [topupAmount, setTopupAmount] = useState('');
   const [topupLoading, setTopupLoading] = useState(false);
 
   // Финансы
   const [invoices, setInvoices] = useState<any[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
-  const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
-  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "pending">("all");
-  const [nicknameFilter, setNicknameFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending'>('all');
+  const [nicknameFilter, setNicknameFilter] = useState('');
 
   // Настройки
   const [settings, setSettings] = useState({
     emailVerificationRequired: false,
-    agreementText: "",
-    contactsText: "",
+    agreementText: '',
+    contactsText: '',
   });
   const [settingsSaving, setSettingsSaving] = useState(false);
 
@@ -78,18 +72,11 @@ export default function AdminPage() {
 
   const checkAdminAccess = async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        router.push("/login");
-        return;
-      }
-
-      const response = await fetch("/api/admin/check", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const response = await fetch('/api/admin/check');
 
       if (!response.ok) {
-        router.push("/");
+        router.push('/');
         return;
       }
 
@@ -97,7 +84,7 @@ export default function AdminPage() {
       loadUsers();
       loadSettings();
     } catch (error) {
-      router.push("/");
+      router.push('/');
     } finally {
       setLoading(false);
     }
@@ -105,54 +92,48 @@ export default function AdminPage() {
 
   const loadUsers = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/admin/users", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const response = await fetch('/api/admin/users');
       const data = await response.json();
       if (data.users) {
         setUsers(data.users);
       }
     } catch (error) {
-      console.error("Load users error:", error);
+      console.error('Load users error:', error);
     }
   };
 
   const loadSettings = async () => {
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/admin/settings", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const response = await fetch('/api/admin/settings');
       const data = await response.json();
       if (data.settings) {
         setSettings({
-          emailVerificationRequired: data.settings.email_verification_required === "1",
-          agreementText: data.settings.user_agreement_text || "",
-          contactsText: data.settings.contacts_text || "",
+          emailVerificationRequired: data.settings.email_verification_required === '1',
+          agreementText: data.settings.user_agreement_text || '',
+          contactsText: data.settings.contacts_text || '',
         });
       }
     } catch (error) {
-      console.error("Load settings error:", error);
+      console.error('Load settings error:', error);
     }
   };
-
 
   const handleSaveSettings = async () => {
     setSettingsSaving(true);
     try {
-      const token = localStorage.getItem("token");
-      await fetch("/api/admin/settings", {
-        method: "POST",
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      await fetch('/api/admin/settings', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(settings),
       });
-      alert("Настройки сохранены");
+      alert('Настройки сохранены');
     } catch (error) {
-      alert("Ошибка сохранения настроек");
+      alert('Ошибка сохранения настроек');
     } finally {
       setSettingsSaving(false);
     }
@@ -165,37 +146,34 @@ export default function AdminPage() {
     }
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `/api/admin/users/search?q=${encodeURIComponent(searchQuery)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const response = await fetch(`/api/admin/users/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await response.json();
       setUsers(data.users || []);
     } catch (error) {
-      console.error("Search error:", error);
+      console.error('Search error:', error);
     }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+    return new Date(dateString).toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
     });
   };
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return {
-      date: date.toLocaleDateString("ru-RU", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
+      date: date.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
       }),
-      time: date.toLocaleTimeString("ru-RU", {
-        hour: "2-digit",
-        minute: "2-digit",
+      time: date.toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
       }),
     };
   };
@@ -204,18 +182,17 @@ export default function AdminPage() {
     if (!topupModal) return;
     const amount = parseFloat(topupAmount);
     if (!amount || amount <= 0) {
-      alert("Введите корректную сумму");
+      alert('Введите корректную сумму');
       return;
     }
 
     setTopupLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      // Токен теперь в httpOnly cookie, отправляется автоматически
       const response = await fetch(`/api/admin/users/${topupModal.userId}/topup`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ amount }),
       });
@@ -224,72 +201,63 @@ export default function AdminPage() {
       if (response.ok && data.success) {
         alert(`Баланс пользователя ${topupModal.nickname} успешно пополнен на ${amount} Койнов`);
         setTopupModal(null);
-        setTopupAmount("");
+        setTopupAmount('');
         loadUsers();
       } else {
-        alert(data.error || "Ошибка пополнения баланса");
+        alert(data.error || 'Ошибка пополнения баланса');
       }
     } catch (error) {
-      console.error("Topup error:", error);
-      alert("Ошибка пополнения баланса");
+      console.error('Topup error:', error);
+      alert('Ошибка пополнения баланса');
     } finally {
       setTopupLoading(false);
-    }
-  };
-
-  const handleCompleteInvoice = async (invoiceId: string) => {
-    if (!confirm("Вы уверены, что хотите обработать этот инвойс? Баланс пользователя будет пополнен.")) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/invoices/${invoiceId}/complete`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        alert("Инвойс успешно обработан! Баланс пользователя пополнен.");
-        loadInvoices(); // Обновляем список
-      } else {
-        alert(data.error || "Ошибка при обработке инвойса");
-      }
-    } catch (error) {
-      console.error("Complete invoice error:", error);
-      alert("Ошибка при обработке инвойса");
     }
   };
 
   const loadInvoices = async () => {
     setInvoicesLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      // Токен теперь в httpOnly cookie, отправляется автоматически
       const params = new URLSearchParams();
-      if (dateFilter.start) params.append("startDate", dateFilter.start);
-      if (dateFilter.end) params.append("endDate", dateFilter.end);
-      if (statusFilter !== "all") params.append("status", statusFilter);
-      if (nicknameFilter.trim()) params.append("nickname", nicknameFilter.trim());
+      if (dateFilter.start) params.append('startDate', dateFilter.start);
+      if (dateFilter.end) params.append('endDate', dateFilter.end);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (nicknameFilter.trim()) params.append('nickname', nicknameFilter.trim());
 
-      const response = await fetch(
-        `/api/admin/invoices?${params.toString()}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Токен теперь в httpOnly cookie, отправляется автоматически
+      const response = await fetch(`/api/admin/invoices?${params.toString()}`);
       const data = await response.json();
       if (data.invoices) {
         setInvoices(data.invoices);
       }
     } catch (error) {
-      console.error("Load invoices error:", error);
+      console.error('Load invoices error:', error);
     } finally {
       setInvoicesLoading(false);
     }
   };
 
   useEffect(() => {
-    if (activeTab === "finances") {
+    if (activeTab === 'finances') {
       loadInvoices();
+
+      // Автообновление инвойсов каждые 30 секунд
+      const interval = setInterval(async () => {
+        // Сначала проверяем статус через Bitbanker API
+        try {
+          // Токен теперь в httpOnly cookie, отправляется автоматически
+          await fetch('/api/admin/invoices/check-status', {
+            method: 'POST',
+          });
+        } catch (error) {
+          console.error('Check invoices status error:', error);
+        }
+
+        // Затем обновляем список
+        loadInvoices();
+      }, 30000);
+
+      return () => clearInterval(interval);
     }
   }, [activeTab, dateFilter, statusFilter, nicknameFilter]);
 
@@ -311,10 +279,7 @@ export default function AdminPage() {
       <header className="bg-black/30 border-b border-white/10">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="text-[#a8d8ea] hover:text-white transition-colors"
-            >
+            <Link href="/" className="text-[#a8d8ea] hover:text-white transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
@@ -325,9 +290,9 @@ export default function AdminPage() {
 
           <button
             onClick={() => {
-              localStorage.removeItem("token");
-              localStorage.removeItem("user");
-              router.push("/");
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              router.push('/');
             }}
             className="text-[#a8d8ea]/60 hover:text-red-400 transition-colors flex items-center gap-2"
           >
@@ -341,33 +306,33 @@ export default function AdminPage() {
         {/* Табы */}
         <div className="flex gap-2 mb-6">
           <button
-            onClick={() => setActiveTab("users")}
+            onClick={() => setActiveTab('users')}
             className={`px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === "users"
-                ? "bg-[#c41e3a] text-white"
-                : "glass text-[#a8d8ea] hover:bg-white/10"
+              activeTab === 'users'
+                ? 'bg-[#c41e3a] text-white'
+                : 'glass text-[#a8d8ea] hover:bg-white/10'
             }`}
           >
             <Users className="w-5 h-5" />
             Пользователи
           </button>
           <button
-            onClick={() => setActiveTab("finances")}
+            onClick={() => setActiveTab('finances')}
             className={`px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === "finances"
-                ? "bg-[#c41e3a] text-white"
-                : "glass text-[#a8d8ea] hover:bg-white/10"
+              activeTab === 'finances'
+                ? 'bg-[#c41e3a] text-white'
+                : 'glass text-[#a8d8ea] hover:bg-white/10'
             }`}
           >
             <DollarSign className="w-5 h-5" />
             Финансы
           </button>
           <button
-            onClick={() => setActiveTab("settings")}
+            onClick={() => setActiveTab('settings')}
             className={`px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === "settings"
-                ? "bg-[#c41e3a] text-white"
-                : "glass text-[#a8d8ea] hover:bg-white/10"
+              activeTab === 'settings'
+                ? 'bg-[#c41e3a] text-white'
+                : 'glass text-[#a8d8ea] hover:bg-white/10'
             }`}
           >
             <Settings className="w-5 h-5" />
@@ -376,7 +341,7 @@ export default function AdminPage() {
         </div>
 
         <AnimatePresence mode="wait">
-          {activeTab === "users" && (
+          {activeTab === 'users' && (
             <motion.div
               key="users"
               initial={{ opacity: 0, y: 20 }}
@@ -390,7 +355,7 @@ export default function AdminPage() {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                     placeholder="Поиск по нику или email..."
                     className="input-magic flex-1 px-4 py-3 rounded-xl text-[#f0f8ff]"
                   />
@@ -406,9 +371,7 @@ export default function AdminPage() {
 
               {/* Список пользователей */}
               <div className="card-festive rounded-3xl p-6">
-                <h2 className="text-xl font-bold text-white mb-4">
-                  Пользователи ({users.length})
-                </h2>
+                <h2 className="text-xl font-bold text-white mb-4">Пользователи ({users.length})</h2>
 
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -423,33 +386,22 @@ export default function AdminPage() {
                     </thead>
                     <tbody>
                       {users.map((user) => (
-                        <tr
-                          key={user.id}
-                          className="border-b border-white/5 hover:bg-white/5"
-                        >
+                        <tr key={user.id} className="border-b border-white/5 hover:bg-white/5">
                           <td
                             className="py-4 pr-4 cursor-pointer"
                             onClick={() => router.push(`/admin/users/${user.id}`)}
                           >
                             <div>
-                              <p className="text-white font-semibold">
-                                {user.nickname}
-                              </p>
-                              <p className="text-[#a8d8ea]/60 text-sm">
-                                {user.email}
-                              </p>
+                              <p className="text-white font-semibold">{user.nickname}</p>
+                              <p className="text-[#a8d8ea]/60 text-sm">{user.email}</p>
                             </div>
                           </td>
                           <td
                             className="py-4 pr-4 cursor-pointer"
                             onClick={() => router.push(`/admin/users/${user.id}`)}
                           >
-                            <span className="text-[#ffd700] font-bold">
-                              {user.balance}
-                            </span>
-                            <span className="text-[#a8d8ea]/60 ml-1">
-                              Койнов
-                            </span>
+                            <span className="text-[#ffd700] font-bold">{user.balance}</span>
+                            <span className="text-[#a8d8ea]/60 ml-1">Койнов</span>
                           </td>
                           <td
                             className="py-4 pr-4 text-[#a8d8ea] cursor-pointer"
@@ -485,7 +437,7 @@ export default function AdminPage() {
             </motion.div>
           )}
 
-          {activeTab === "finances" && (
+          {activeTab === 'finances' && (
             <motion.div
               key="finances"
               initial={{ opacity: 0, y: 20 }}
@@ -505,9 +457,7 @@ export default function AdminPage() {
                     <input
                       type="date"
                       value={dateFilter.start}
-                      onChange={(e) =>
-                        setDateFilter({ ...dateFilter, start: e.target.value })
-                      }
+                      onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })}
                       className="input-magic w-full px-4 py-2 rounded-xl text-[#f0f8ff]"
                     />
                   </div>
@@ -516,9 +466,7 @@ export default function AdminPage() {
                     <input
                       type="date"
                       value={dateFilter.end}
-                      onChange={(e) =>
-                        setDateFilter({ ...dateFilter, end: e.target.value })
-                      }
+                      onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })}
                       className="input-magic w-full px-4 py-2 rounded-xl text-[#f0f8ff]"
                     />
                   </div>
@@ -528,7 +476,7 @@ export default function AdminPage() {
                     <select
                       value={statusFilter}
                       onChange={(e) =>
-                        setStatusFilter(e.target.value as "all" | "completed" | "pending")
+                        setStatusFilter(e.target.value as 'all' | 'completed' | 'pending')
                       }
                       className="input-magic w-full px-4 py-2 rounded-xl text-[#f0f8ff]"
                     >
@@ -553,9 +501,7 @@ export default function AdminPage() {
 
               {/* Таблица инвойсов */}
               <div className="card-festive rounded-3xl p-6">
-                <h2 className="text-xl font-bold text-white mb-4">
-                  Инвойсы ({invoices.length})
-                </h2>
+                <h2 className="text-xl font-bold text-white mb-4">Инвойсы ({invoices.length})</h2>
 
                 {invoicesLoading ? (
                   <div className="flex justify-center py-8">
@@ -592,9 +538,11 @@ export default function AdminPage() {
                                     className="text-[#ffd700] hover:text-[#ffed4e] transition-colors font-semibold"
                                   >
                                     {invoice.nickname ||
-                                     (invoice.first_name && invoice.last_name ? `${invoice.first_name} ${invoice.last_name}` : null) ||
-                                     invoice.email ||
-                                     `ID: ${invoice.user_id}`}
+                                      (invoice.first_name && invoice.last_name
+                                        ? `${invoice.first_name} ${invoice.last_name}`
+                                        : null) ||
+                                      invoice.email ||
+                                      `ID: ${invoice.user_id}`}
                                   </Link>
                                 </td>
                                 <td className="py-4 pr-4 text-[#ffd700] font-bold">
@@ -603,12 +551,12 @@ export default function AdminPage() {
                                 <td className="py-4 pr-4">
                                   <span
                                     className={`px-3 py-1 rounded-lg text-sm font-semibold ${
-                                      invoice.status === "completed"
-                                        ? "bg-green-500/20 text-green-400"
-                                        : "bg-yellow-500/20 text-yellow-400"
+                                      invoice.status === 'completed'
+                                        ? 'bg-green-500/20 text-green-400'
+                                        : 'bg-yellow-500/20 text-yellow-400'
                                     }`}
                                   >
-                                    {invoice.status === "completed" ? "Оплачен" : "Не оплачен"}
+                                    {invoice.status === 'completed' ? 'Оплачен' : 'Не оплачен'}
                                   </span>
                                 </td>
                                 <td className="py-4 pr-4">
@@ -626,15 +574,7 @@ export default function AdminPage() {
                                   )}
                                 </td>
                                 <td className="py-4">
-                                  {invoice.status !== "completed" && (
-                                    <button
-                                      onClick={() => handleCompleteInvoice(invoice.invoice_id)}
-                                      className="px-3 py-1.5 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg text-sm font-semibold transition-colors"
-                                      title="Отметить как оплаченный"
-                                    >
-                                      Обработать
-                                    </button>
-                                  )}
+                                  {/* Кнопка убрана - используется автообновление */}
                                 </td>
                               </tr>
                             );
@@ -654,7 +594,7 @@ export default function AdminPage() {
             </motion.div>
           )}
 
-          {activeTab === "settings" && (
+          {activeTab === 'settings' && (
             <motion.div
               key="settings"
               initial={{ opacity: 0, y: 20 }}
@@ -662,17 +602,13 @@ export default function AdminPage() {
               exit={{ opacity: 0, y: -20 }}
               className="card-festive rounded-3xl p-6"
             >
-              <h2 className="text-xl font-bold text-white mb-6">
-                Настройки сайта
-              </h2>
+              <h2 className="text-xl font-bold text-white mb-6">Настройки сайта</h2>
 
               <div className="space-y-6">
                 {/* Верификация email */}
                 <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
                   <div>
-                    <h3 className="text-white font-semibold">
-                      Верификация email при регистрации
-                    </h3>
+                    <h3 className="text-white font-semibold">Верификация email при регистрации</h3>
                     <p className="text-[#a8d8ea]/60 text-sm">
                       Если включено, пользователи должны подтвердить email
                     </p>
@@ -681,21 +617,16 @@ export default function AdminPage() {
                     onClick={() =>
                       setSettings({
                         ...settings,
-                        emailVerificationRequired:
-                          !settings.emailVerificationRequired,
+                        emailVerificationRequired: !settings.emailVerificationRequired,
                       })
                     }
                     className={`w-14 h-8 rounded-full transition-colors ${
-                      settings.emailVerificationRequired
-                        ? "bg-green-500"
-                        : "bg-white/20"
+                      settings.emailVerificationRequired ? 'bg-green-500' : 'bg-white/20'
                     }`}
                   >
                     <div
                       className={`w-6 h-6 rounded-full bg-white transition-transform ${
-                        settings.emailVerificationRequired
-                          ? "translate-x-7"
-                          : "translate-x-1"
+                        settings.emailVerificationRequired ? 'translate-x-7' : 'translate-x-1'
                       }`}
                     />
                   </button>
@@ -708,9 +639,7 @@ export default function AdminPage() {
                   </label>
                   <textarea
                     value={settings.agreementText}
-                    onChange={(e) =>
-                      setSettings({ ...settings, agreementText: e.target.value })
-                    }
+                    onChange={(e) => setSettings({ ...settings, agreementText: e.target.value })}
                     rows={15}
                     className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] resize-none"
                     placeholder="Введите текст соглашения..."
@@ -724,15 +653,14 @@ export default function AdminPage() {
                   </label>
                   <textarea
                     value={settings.contactsText}
-                    onChange={(e) =>
-                      setSettings({ ...settings, contactsText: e.target.value })
-                    }
+                    onChange={(e) => setSettings({ ...settings, contactsText: e.target.value })}
                     rows={10}
                     className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] resize-none"
-                    placeholder="Введите контактную информацию (можно использовать HTML, например: &lt;a href=&quot;https://t.me/username&quot;&gt;Telegram&lt;/a&gt;)"
+                    placeholder='Введите контактную информацию (можно использовать HTML, например: &lt;a href="https://t.me/username"&gt;Telegram&lt;/a&gt;)'
                   />
                   <p className="text-[#a8d8ea]/60 text-sm mt-2">
-                    Поддерживается HTML разметка. Например: &lt;a href="https://t.me/username"&gt;Telegram&lt;/a&gt;
+                    Поддерживается HTML разметка. Например: &lt;a
+                    href="https://t.me/username"&gt;Telegram&lt;/a&gt;
                   </p>
                 </div>
 
@@ -769,7 +697,7 @@ export default function AdminPage() {
               <button
                 onClick={() => {
                   setTopupModal(null);
-                  setTopupAmount("");
+                  setTopupAmount('');
                 }}
                 className="text-[#a8d8ea]/60 hover:text-white transition-colors"
               >
@@ -778,9 +706,7 @@ export default function AdminPage() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-[#a8d8ea] text-sm mb-2">
-                Сумма (Койнов)
-              </label>
+              <label className="block text-[#a8d8ea] text-sm mb-2">Сумма (Койнов)</label>
               <input
                 type="number"
                 value={topupAmount}
@@ -811,7 +737,7 @@ export default function AdminPage() {
               <button
                 onClick={() => {
                   setTopupModal(null);
-                  setTopupAmount("");
+                  setTopupAmount('');
                 }}
                 className="glass px-4 py-3 rounded-xl text-[#a8d8ea] hover:bg-white/10 transition-colors"
               >

@@ -8,6 +8,9 @@ import {
   BitbankerCurrency,
 } from '@/lib/config';
 import { createBalanceTransaction, ensureDbInitialized, getUserById } from '@/lib/db';
+import { checkRateLimit, paymentRateLimit } from '@/lib/rate-limit';
+import type { BitbankerInvoiceResponse } from '@/lib/types';
+import { CreatePaymentSchema, validateRequest } from '@/lib/validation';
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -36,12 +39,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { amount, paymentCurrency } = body;
-
-    if (!amount || amount < 1) {
-      return NextResponse.json({ error: 'Минимальная сумма пополнения: 1 Койн' }, { status: 400 });
+    // Rate limiting (SEC-010)
+    const identifier = `${user.id}_${
+      request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'anonymous'
+    }`;
+    const rateLimitResult = await checkRateLimit(paymentRateLimit, identifier);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Слишком много запросов на создание платежей. Попробуйте позже.' },
+        { status: 429 }
+      );
     }
+
+    const body = await request.json();
+
+    // Валидация с помощью Zod
+    const validation = validateRequest(CreatePaymentSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const { amount, paymentCurrency } = validation.data;
 
     // Получаем полные данные пользователя для имени и фамилии
     const userData = await getUserById(user.id);
@@ -88,12 +106,7 @@ export async function POST(request: NextRequest) {
           BITBANKER_API_KEY
         );
 
-        // Для отладки: логируем строку для подписи
-        const amountStr = Number.isInteger(amount) ? amount.toString() : amount.toFixed(2);
-        const signData = `${currency}${amountStr}${header}${description}`;
-        console.log('Sign data string:', signData);
-        console.log('Using BITBANKER_API_KEY for signing');
-        console.log('Sign (first 20 chars):', sign.substring(0, 20));
+        // Убрано логирование чувствительных данных (SEC-008)
 
         const payload = {
           payment_currencies: selectedCurrencies, // ["BTC", "USDT"]
@@ -129,9 +142,9 @@ export async function POST(request: NextRequest) {
         const responseText = await bitbankerResponse.text();
         console.log('Bitbanker response:', responseText);
 
-        let invoiceData;
+        let invoiceData: BitbankerInvoiceResponse;
         try {
-          invoiceData = JSON.parse(responseText);
+          invoiceData = JSON.parse(responseText) as BitbankerInvoiceResponse;
         } catch {
           console.error('Failed to parse Bitbanker response:', responseText);
           throw new Error('Invalid Bitbanker response');
@@ -143,8 +156,8 @@ export async function POST(request: NextRequest) {
           throw new Error(errorMessage);
         }
 
-        invoiceId = invoiceData.id;
-        invoiceUrl = invoiceData.link;
+        invoiceId = invoiceData.id || '';
+        invoiceUrl = invoiceData.link || '';
 
         if (!invoiceId || !invoiceUrl) {
           console.error('Missing invoice data:', invoiceData);

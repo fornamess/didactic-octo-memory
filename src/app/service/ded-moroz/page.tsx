@@ -19,6 +19,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import Modal from '@/components/Modal';
 
 const COMMENT_SUGGESTIONS = [
   'занимается спортом и любит футбол',
@@ -61,16 +62,14 @@ export default function DedMorozServicePage() {
 
   useEffect(() => {
     // Инициализируем пользователя синхронно из localStorage
-    const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
-    if (token && userData) {
+    if (userData) {
       setUser(JSON.parse(userData));
 
       // Обновляем баланс асинхронно с задержкой (не блокирует рендеринг)
+      // Токен теперь в httpOnly cookie, отправляется автоматически
       const timeoutId = setTimeout(() => {
-        fetch('/api/user/balance', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
+        fetch('/api/user/balance')
           .then((res) => res.json())
           .then((data) => {
             if (data.balance !== undefined) {
@@ -161,17 +160,15 @@ export default function DedMorozServicePage() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-
       // Конвертируем фото в base64
       const photo1Base64 = formData.photo1Preview;
       const photo2Base64 = formData.photo2Preview;
 
+      // Токен теперь в httpOnly cookie, отправляется автоматически
       const response = await fetch('/api/generate-video', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           childName: formData.childName,
@@ -296,7 +293,7 @@ export default function DedMorozServicePage() {
             >
               <Coins className="w-4 h-4 sm:w-5 sm:h-5 text-[#ffd700]" />
               <span className="font-bold text-[#ffd700]">{user.balance}</span>
-              <span className="text-[#a8d8ea]/60 hidden sm:inline">Койнов</span>
+              <span className="text-[#a8d8ea]/90 hidden sm:inline">Койнов</span>
             </Link>
           ) : (
             <Link
@@ -362,7 +359,7 @@ export default function DedMorozServicePage() {
                   <div className="text-center">
                     <span className="text-6xl mb-4 block">🎬</span>
                     <p className="text-[#a8d8ea]">Пример готового видео</p>
-                    <p className="text-[#a8d8ea]/60 text-sm mt-2">
+                    <p className="text-[#a8d8ea]/90 text-sm mt-2">
                       Наведите курсор или кликните для просмотра
                     </p>
                   </div>
@@ -371,6 +368,7 @@ export default function DedMorozServicePage() {
               <button
                 onClick={toggleVideo}
                 className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors"
+                aria-label={isPlaying ? "Приостановить видео" : "Воспроизвести видео"}
               >
                 {isPlaying ? (
                   <span className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
@@ -394,7 +392,7 @@ export default function DedMorozServicePage() {
             {/* Цена */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-white/10 gap-4">
               <div>
-                <p className="text-[#a8d8ea]/60 text-xs sm:text-sm line-through">Стоимость: 5 Койнов</p>
+                <p className="text-[#a8d8ea]/90 text-xs sm:text-sm line-through">Стоимость: 5 Койнов</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <Gift className="w-6 h-6 sm:w-8 sm:h-8 text-[#0d4f2b]" />
                   <span className="text-2xl sm:text-4xl font-bold text-[#0d4f2b]">БЕСПЛАТНО</span>
@@ -445,7 +443,7 @@ export default function DedMorozServicePage() {
                 </li>
               </ul>
 
-              <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-3 sm:pt-4 text-xs sm:text-sm text-[#a8d8ea]/60">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-3 sm:pt-4 text-xs sm:text-sm text-[#a8d8ea]/90">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
                   ~2 минуты
@@ -469,9 +467,12 @@ export default function DedMorozServicePage() {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
               className="fixed bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 bg-green-500/90 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl shadow-2xl max-w-md text-center z-50 mx-4"
             >
-              <Check className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1 sm:mb-2" />
+              <Check className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1 sm:mb-2" aria-hidden="true" />
               <p className="text-sm sm:text-base">{success}</p>
             </motion.div>
           )}
@@ -480,32 +481,12 @@ export default function DedMorozServicePage() {
         {/* Форма заказа (модальное окно) */}
         <AnimatePresence>
           {showOrderForm && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-              onClick={(e) => e.target === e.currentTarget && setShowOrderForm(false)}
+            <Modal
+              isOpen={showOrderForm}
+              onClose={() => setShowOrderForm(false)}
+              title="Оформление заказа"
+              className="max-h-[90vh] flex flex-col"
             >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="card-festive rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 w-full max-w-2xl max-h-[90vh] flex flex-col"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex-shrink-0 flex justify-between items-center mb-4 sm:mb-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-gradient font-display">
-                    Оформление заказа
-                  </h2>
-                  <button
-                    onClick={() => setShowOrderForm(false)}
-                    className="text-[#a8d8ea]/60 hover:text-white p-1"
-                  >
-                    <X className="w-5 h-5 sm:w-6 sm:h-6" />
-                  </button>
-                </div>
-
                 <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 -mr-1 sm:-mr-2 min-h-0">
                   <form onSubmit={handleSubmitOrder} className="space-y-4 sm:space-y-6">
                     {/* Имя ребёнка */}
@@ -524,7 +505,7 @@ export default function DedMorozServicePage() {
                     {/* Возраст ребёнка */}
                     <div>
                       <label className="block text-[#a8d8ea] mb-2 font-semibold text-sm sm:text-base">
-                        Возраст ребёнка <span className="text-[#a8d8ea]/60 text-xs sm:text-sm">(необязательно)</span>
+                        Возраст ребёнка <span className="text-[#a8d8ea]/90 text-xs sm:text-sm">(необязательно)</span>
                       </label>
                       <input
                         type="number"
@@ -537,7 +518,7 @@ export default function DedMorozServicePage() {
                         placeholder="Сколько лет ребёнку?"
                         className="input-magic w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl text-[#f0f8ff] text-base sm:text-lg"
                       />
-                      <p className="text-[#a8d8ea]/60 text-xs sm:text-sm mt-1">
+                      <p className="text-[#a8d8ea]/90 text-xs sm:text-sm mt-1">
                         Укажите возраст, чтобы Дед Мороз обратился к ребёнку более персонально
                       </p>
                     </div>
@@ -566,13 +547,14 @@ export default function DedMorozServicePage() {
                                   })
                                 }
                                 className="absolute top-2 right-2 bg-red-500 rounded-full p-1"
+                                aria-label="Удалить фото 1"
                               >
-                                <X className="w-4 h-4 text-white" />
+                                <X className="w-4 h-4 text-white" aria-hidden="true" />
                               </button>
                             </div>
                           ) : (
                             <label className="block aspect-video rounded-xl border-2 border-dashed border-[#a8d8ea]/30 hover:border-[#a8d8ea]/60 cursor-pointer transition-colors">
-                              <div className="h-full flex flex-col items-center justify-center text-[#a8d8ea]/60">
+                              <div className="h-full flex flex-col items-center justify-center text-[#a8d8ea]/90">
                                 <Upload className="w-8 h-8 mb-2" />
                                 <span className="text-sm">Загрузить фото</span>
                               </div>
@@ -586,7 +568,7 @@ export default function DedMorozServicePage() {
                           )}
                         </div>
                         <div>
-                          <label className="block text-[#a8d8ea]/80 mb-1 text-sm">
+                          <label className="block text-[#a8d8ea] mb-1 text-sm">
                             Комментарий к фото
                           </label>
                           <textarea
@@ -607,7 +589,7 @@ export default function DedMorozServicePage() {
                                 key={i}
                                 type="button"
                                 onClick={() => setFormData({ ...formData, photo1Comment: s })}
-                                className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-[#a8d8ea]/80"
+                                className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-[#a8d8ea]"
                               >
                                 {s}
                               </button>
@@ -641,13 +623,14 @@ export default function DedMorozServicePage() {
                                   })
                                 }
                                 className="absolute top-2 right-2 bg-red-500 rounded-full p-1"
+                                aria-label="Удалить фото 2"
                               >
-                                <X className="w-4 h-4 text-white" />
+                                <X className="w-4 h-4 text-white" aria-hidden="true" />
                               </button>
                             </div>
                           ) : (
                             <label className="block aspect-video rounded-xl border-2 border-dashed border-[#a8d8ea]/30 hover:border-[#a8d8ea]/60 cursor-pointer transition-colors">
-                              <div className="h-full flex flex-col items-center justify-center text-[#a8d8ea]/60">
+                              <div className="h-full flex flex-col items-center justify-center text-[#a8d8ea]/90">
                                 <Upload className="w-8 h-8 mb-2" />
                                 <span className="text-sm">Загрузить фото</span>
                               </div>
@@ -661,7 +644,7 @@ export default function DedMorozServicePage() {
                           )}
                         </div>
                         <div>
-                          <label className="block text-[#a8d8ea]/80 mb-1 text-sm">
+                          <label className="block text-[#a8d8ea] mb-1 text-sm">
                             Комментарий к фото
                           </label>
                           <textarea
@@ -682,7 +665,7 @@ export default function DedMorozServicePage() {
                                 key={i}
                                 type="button"
                                 onClick={() => setFormData({ ...formData, photo2Comment: s })}
-                                className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-[#a8d8ea]/80"
+                                className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-[#a8d8ea]"
                               >
                                 {s}
                               </button>
@@ -694,7 +677,12 @@ export default function DedMorozServicePage() {
 
                     {/* Ошибка */}
                     {error && (
-                      <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 text-red-200">
+                      <div
+                        role="alert"
+                        aria-live="assertive"
+                        aria-atomic="true"
+                        className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 text-red-200"
+                      >
                         ⚠️ {error}
                       </div>
                     )}
@@ -732,8 +720,7 @@ export default function DedMorozServicePage() {
                     )}
                   </motion.button>
                 </div>
-              </motion.div>
-            </motion.div>
+            </Modal>
           )}
         </AnimatePresence>
       </div>

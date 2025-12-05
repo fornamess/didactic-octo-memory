@@ -1,17 +1,32 @@
 import { comparePassword, generateToken } from '@/lib/auth';
 import { ensureDbInitialized, getUserByEmail } from '@/lib/db';
+import { authRateLimit, checkRateLimit } from '@/lib/rate-limit';
+import { LoginSchema, validateRequest } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     await ensureDbInitialized();
 
-    const { email, password } = await request.json();
-
-    // Валидация
-    if (!email || !password) {
-      return NextResponse.json({ error: 'Email и пароль обязательны' }, { status: 400 });
+    // Rate limiting (SEC-010)
+    const identifier = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'anonymous';
+    const rateLimitResult = await checkRateLimit(authRateLimit, identifier);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Слишком много запросов. Попробуйте позже.' },
+        { status: 429 }
+      );
     }
+
+    const body = await request.json();
+
+    // Валидация с помощью Zod
+    const validation = validateRequest(LoginSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const { email, password } = validation.data;
 
     // Находим пользователя
     const user = await getUserByEmail(email);
@@ -32,9 +47,9 @@ export async function POST(request: NextRequest) {
       name: user.nickname || user.first_name,
     });
 
-    return NextResponse.json({
+    // Создаем response с данными пользователя
+    const response = NextResponse.json({
       success: true,
-      token,
       user: {
         id: user.id,
         email: user.email,
@@ -44,6 +59,17 @@ export async function POST(request: NextRequest) {
         balance: user.balance || 0,
       },
     });
+
+    // Устанавливаем httpOnly cookie с токеном
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 30, // 30 дней
+      path: '/',
+    });
+
+    return response;
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json({ error: 'Ошибка при входе' }, { status: 500 });

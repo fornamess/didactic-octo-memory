@@ -109,7 +109,8 @@ export async function GET(request: NextRequest) {
     const customerId = `web_user_${user.id}`;
 
     // Автозапуск генерации intro/outro если нужно
-    if (!introReady && (!introDb || introDb.status === 'failed')) {
+    // Также перезапускаем если статус 'pending' (застрял)
+    if (!introReady && (!introDb || introDb.status === 'failed' || introDb.status === 'pending')) {
       console.log('Auto-starting intro generation...');
       const result = await generateIntroVideo(customerId);
       if (result.success && result.taskId) {
@@ -129,7 +130,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (!outroReady && (!outroDb || outroDb.status === 'failed')) {
+    if (!outroReady && (!outroDb || outroDb.status === 'failed' || outroDb.status === 'pending')) {
       console.log('Auto-starting outro generation...');
       const result = await generateOutroVideo(customerId);
       if (result.success && result.taskId) {

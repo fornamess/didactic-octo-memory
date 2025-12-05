@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, Mail, MessageCircle, Loader } from "lucide-react";
+import DOMPurify from "isomorphic-dompurify";
 
 export default function ContactsPage() {
   const [contactsText, setContactsText] = useState<string>("");
@@ -55,7 +56,13 @@ export default function ContactsPage() {
         >
           <div
             className="prose prose-invert max-w-none text-[#f0f8ff]"
-            dangerouslySetInnerHTML={{ __html: contactsText || "<p>Контактная информация будет добавлена в ближайшее время.</p>" }}
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(contactsText || "<p>Контактная информация будет добавлена в ближайшее время.</p>", {
+                ALLOWED_TAGS: ['p', 'a', 'strong', 'em', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span'],
+                ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+                ALLOW_DATA_ATTR: false
+              })
+            }}
           />
         </motion.div>
       </div>

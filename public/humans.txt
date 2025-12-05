@@ -1,0 +1,13 @@
+/* TEAM */
+Developer: AI Video Generator Team
+Contact: support@prizmabox.org
+From: Russia
+
+/* THANKS */
+Technology: Next.js, React, Sora 2 AI, TypeScript
+
+/* SITE */
+Last update: 2025/12/04
+Standards: HTML5, CSS3, JavaScript ES6+
+Components: React, Framer Motion, Tailwind CSS
+Software: Node.js, FFmpeg

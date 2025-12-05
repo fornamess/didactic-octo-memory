@@ -9,6 +9,8 @@ import {
   updateOrderTaskId,
   updateUserBalance,
 } from '@/lib/db';
+import { generateVideoRateLimit, checkRateLimit } from '@/lib/rate-limit';
+import { GenerateVideoSchema, validateRequest } from '@/lib/validation';
 import {
   checkUniversalVideosExist,
   createVideoTask,
@@ -19,15 +21,6 @@ import {
 import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
-
-interface RequestBody {
-  childName: string;
-  childAge?: number;
-  photo1: string;
-  photo1Comment: string;
-  photo2: string;
-  photo2Comment: string;
-}
 
 // Функция для сохранения base64 изображения на сервер
 async function saveBase64Image(
@@ -78,24 +71,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 });
     }
 
-    const body: RequestBody = await request.json();
-    const { childName, childAge, photo1, photo1Comment, photo2, photo2Comment } = body;
-
-    // Валидация
-    if (!childName || !photo1Comment || !photo2Comment) {
+    // Rate limiting (SEC-010)
+    const identifier = `${user.id}_${request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'anonymous'}`;
+    const rateLimitResult = await checkRateLimit(generateVideoRateLimit, identifier);
+    if (!rateLimitResult.success) {
       return NextResponse.json(
-        { error: 'Имя ребёнка и комментарии к фото обязательны' },
-        { status: 400 }
+        { error: 'Слишком много запросов на генерацию видео. Подождите немного.' },
+        { status: 429 }
       );
     }
 
-    // Валидация возраста (если указан)
-    if (childAge !== undefined && (childAge < 1 || childAge > 18)) {
-      return NextResponse.json(
-        { error: 'Возраст ребёнка должен быть от 1 до 18 лет' },
-        { status: 400 }
-      );
+    const body = await request.json();
+
+    // Валидация с помощью Zod
+    const validation = validateRequest(GenerateVideoSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
+
+    const { childName, childAge, photo1, photo1Comment, photo2, photo2Comment } = validation.data;
 
     // Проверка баланса (если сервис платный)
     if (SERVICE_COST > 0) {
@@ -165,7 +159,8 @@ export async function POST(request: NextRequest) {
     const generateTasks: Promise<void>[] = [];
 
     // Если нет intro файла и нет активной генерации - генерируем
-    const shouldGenerateIntro = !universalVideos.intro && (!introDb || introDb.status === 'failed');
+    // Также перезапускаем если статус 'pending' (застрял) или 'failed'
+    const shouldGenerateIntro = !universalVideos.intro && (!introDb || introDb.status === 'failed' || introDb.status === 'pending');
     console.log(
       'Should generate intro?',
       shouldGenerateIntro,
@@ -188,13 +183,14 @@ export async function POST(request: NextRequest) {
           }
         })
       );
-    } else if (introDb && introDb.task_id) {
+    } else if (introDb && introDb.task_id && introDb.status === 'processing') {
       // Есть активная генерация - добавляем в список для отслеживания
       tasksToGenerate.push({ type: 'intro', taskId: introDb.task_id });
     }
 
     // Если нет outro файла и нет активной генерации - генерируем
-    const shouldGenerateOutro = !universalVideos.outro && (!outroDb || outroDb.status === 'failed');
+    // Также перезапускаем если статус 'pending' (застрял) или 'failed'
+    const shouldGenerateOutro = !universalVideos.outro && (!outroDb || outroDb.status === 'failed' || outroDb.status === 'pending');
     console.log(
       'Should generate outro?',
       shouldGenerateOutro,

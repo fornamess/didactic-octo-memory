@@ -1,37 +1,21 @@
 import { generateToken, hashPassword } from '@/lib/auth';
 import { createUser, ensureDbInitialized, getUserByEmail } from '@/lib/db';
+import { RegisterSchema, validateRequest } from '@/lib/validation';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
     await ensureDbInitialized();
 
-    const { email, password, nickname, firstName, lastName, agreedToTerms } = await request.json();
+    const body = await request.json();
 
-    // Валидация
-    if (!email || !password || !nickname || !firstName || !lastName) {
-      return NextResponse.json({ error: 'Все поля обязательны' }, { status: 400 });
+    // Валидация с помощью Zod
+    const validation = validateRequest(RegisterSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    // Проверка формата email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: 'Неверный формат email' }, { status: 400 });
-    }
-
-    if (!agreedToTerms) {
-      return NextResponse.json(
-        { error: 'Необходимо согласиться с условиями использования' },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: 'Пароль должен быть не менее 6 символов' },
-        { status: 400 }
-      );
-    }
+    const { email, password, nickname, firstName, lastName } = validation.data;
 
     // Проверка существования пользователя
     const existingUser = await getUserByEmail(email);
@@ -55,9 +39,9 @@ export async function POST(request: NextRequest) {
       name: nickname,
     });
 
-    return NextResponse.json({
+    // Создаем response с данными пользователя
+    const response = NextResponse.json({
       success: true,
-      token,
       user: {
         id: userId,
         email,
@@ -66,6 +50,17 @@ export async function POST(request: NextRequest) {
         lastName,
       },
     });
+
+    // Устанавливаем httpOnly cookie с токеном
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24 * 30, // 30 дней
+      path: '/',
+    });
+
+    return response;
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json({ error: 'Ошибка при регистрации' }, { status: 500 });

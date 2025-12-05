@@ -1,0 +1,4 @@
+Contact: mailto:support@prizmabox.org
+Expires: 2026-12-31T23:59:59.000Z
+Preferred-Languages: ru, en
+Canonical: https://prizmabox.org/.well-known/security.txt
