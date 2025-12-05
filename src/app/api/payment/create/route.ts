@@ -67,14 +67,14 @@ export async function POST(request: NextRequest) {
       ? `${userData.first_name} ${userData.last_name}`.trim() || user.email
       : user.email;
 
-    // Валидация выбранной криптовалюты - только BTC и USDT
+    // Валидация выбранной криптовалюты
     let selectedCurrencies: BitbankerCurrency[] = ['BTC', 'USDT'];
     if (paymentCurrency) {
       if (Array.isArray(paymentCurrency)) {
         selectedCurrencies = paymentCurrency.filter((c: string) =>
-          ['BTC', 'USDT'].includes(c)
+          BITBANKER_PAYMENT_CURRENCIES.includes(c as BitbankerCurrency)
         ) as BitbankerCurrency[];
-      } else if (['BTC', 'USDT'].includes(paymentCurrency)) {
+      } else if (BITBANKER_PAYMENT_CURRENCIES.includes(paymentCurrency as BitbankerCurrency)) {
         selectedCurrencies = [paymentCurrency as BitbankerCurrency];
       }
     }

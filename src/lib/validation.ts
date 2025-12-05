@@ -25,15 +25,33 @@ export const GenerateVideoSchema = z.object({
   childName: z.string().min(1, 'Имя ребёнка обязательно').max(50).trim(),
   childAge: z.number().int().min(1).max(18).optional(),
   photo1: z.string().startsWith('data:image/', 'Фото 1 должно быть в формате base64'),
-  photo1Comment: z.string().min(5, 'Комментарий к фото 1 должен быть не менее 5 символов').max(500).trim(),
+  photo1Comment: z
+    .string()
+    .min(5, 'Комментарий к фото 1 должен быть не менее 5 символов')
+    .max(500)
+    .trim(),
   photo2: z.string().startsWith('data:image/', 'Фото 2 должно быть в формате base64'),
-  photo2Comment: z.string().min(5, 'Комментарий к фото 2 должен быть не менее 5 символов').max(500).trim(),
+  photo2Comment: z
+    .string()
+    .min(5, 'Комментарий к фото 2 должен быть не менее 5 символов')
+    .max(500)
+    .trim(),
 });
 
 // Создание платежа
+const PaymentCurrencyEnum = z.enum(['BTC', 'ETH', 'USDT', 'USDC', 'TRX', 'ATOM', 'AVAX', 'LTC']);
+
 export const CreatePaymentSchema = z.object({
-  amount: z.number().positive('Сумма должна быть положительной').min(1, 'Минимальная сумма: 1 Койн'),
-  paymentCurrency: z.enum(['BTC', 'ETH', 'USDT', 'USDC', 'TRX', 'ATOM', 'AVAX', 'LTC']).optional(),
+  amount: z
+    .number()
+    .positive('Сумма должна быть положительной')
+    .min(1, 'Минимальная сумма: 1 Койн'),
+  paymentCurrency: z
+    .union([
+      PaymentCurrencyEnum,
+      z.array(PaymentCurrencyEnum).min(1, 'Массив валют не может быть пустым'),
+    ])
+    .optional(),
 });
 
 // Пополнение баланса (админ)
@@ -73,7 +91,10 @@ export const ResetPasswordSchema = z.object({
 });
 
 // Вспомогательная функция для валидации с обработкой ошибок
-export function validateRequest<T>(schema: z.ZodSchema<T>, data: unknown): { success: true; data: T } | { success: false; error: string } {
+export function validateRequest<T>(
+  schema: z.ZodSchema<T>,
+  data: unknown
+): { success: true; data: T } | { success: false; error: string } {
   try {
     const validated = schema.parse(data);
     return { success: true, data: validated };
