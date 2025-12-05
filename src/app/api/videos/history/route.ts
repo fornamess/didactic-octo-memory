@@ -15,19 +15,21 @@ export async function GET(request: NextRequest) {
     // Получаем историю заказов
     const orders = await getUserOrders(user.id);
 
+    console.log(`[GET /api/videos/history] User ${user.id}, found ${orders.length} orders`);
+
     return NextResponse.json({
       success: true,
       orders: orders.map((o) => ({
         id: o.id,
         orderNumber: o.order_number,
         serviceName: o.service_name,
-        taskId: o.task_id,
+        taskId: o.task_id || null,
         childName: o.child_name,
-        videoUrl: o.video_url,
-        status: o.status,
-        statusDescription: o.status_description,
+        videoUrl: o.video_url || null,
+        status: o.status || 'pending',
+        statusDescription: o.status_description || 'Ожидание генерации',
         createdAt: o.created_at,
-        completedAt: o.completed_at,
+        completedAt: o.completed_at || null,
       })),
     });
   } catch (error) {

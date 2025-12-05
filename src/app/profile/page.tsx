@@ -71,8 +71,9 @@ export default function ProfilePage() {
 
   // Используем SWR для загрузки данных (IMP-001)
   const { data: ordersData, mutate: mutateOrders } = useSWR('/api/videos/history', {
-    revalidateOnFocus: false,
+    revalidateOnFocus: true,
     revalidateOnReconnect: true,
+    refreshInterval: 30000, // Автообновление каждые 30 секунд
   });
   const { data: balanceData, mutate: mutateBalance } = useSWR('/api/user/balance', {
     revalidateOnFocus: true,
@@ -86,7 +87,16 @@ export default function ProfilePage() {
   // Обновляем локальное состояние при изменении данных SWR
   useEffect(() => {
     if (ordersData?.orders) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Profile] Orders loaded:', ordersData.orders.length, ordersData.orders);
+      }
       setOrders(ordersData.orders);
+    } else if (ordersData && ordersData.success !== false) {
+      // Если ответ пришел, но orders пустой или undefined
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Profile] Orders data received but empty:', ordersData);
+      }
+      setOrders([]);
     }
   }, [ordersData]);
 
@@ -207,9 +217,10 @@ export default function ProfilePage() {
     // Токен теперь в httpOnly cookie, отправляется автоматически
     loadData();
 
-    // Обновляем баланс сразу после загрузки пользователя
+    // Обновляем баланс и заказы сразу после загрузки пользователя
     mutateBalance();
-  }, [router, mutateBalance]);
+    mutateOrders();
+  }, [router, mutateBalance, mutateOrders]);
 
   const loadData = async () => {
     try {

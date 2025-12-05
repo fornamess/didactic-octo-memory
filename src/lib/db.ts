@@ -273,6 +273,7 @@ export async function createOrder(
     [userId, orderNumber, childName, photo1Url, photo1Comment, photo2Url, photo2Comment, cost]
   );
   db.close();
+  console.log(`[DB] Order created: id=${result.lastID}, number=${orderNumber}, user_id=${userId}`);
   return { orderId: result.lastID, orderNumber };
 }
 
@@ -327,6 +328,7 @@ export async function getUserOrders(userId: number, limit: number = 50) {
     [userId, limit]
   );
   db.close();
+  console.log(`[DB] getUserOrders: user_id=${userId}, found ${orders.length} orders`);
   return orders;
 }
 

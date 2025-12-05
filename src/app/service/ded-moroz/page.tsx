@@ -1,5 +1,6 @@
 'use client';
 
+import Modal from '@/components/Modal';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -19,7 +20,6 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import Modal from '@/components/Modal';
 
 const COMMENT_SUGGESTIONS = [
   'занимается спортом и любит футбол',
@@ -197,10 +197,12 @@ export default function DedMorozServicePage() {
       );
       setShowOrderForm(false);
 
-      // Редирект в профиль через 3 секунды
+      // Редирект в профиль через 2 секунды
       setTimeout(() => {
+        // Используем router.push с refresh для обновления данных
         router.push('/profile');
-      }, 3000);
+        router.refresh();
+      }, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
@@ -319,7 +321,9 @@ export default function DedMorozServicePage() {
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-gradient font-display mb-2 sm:mb-3 px-2">
             Видео-поздравление от Деда Мороза
           </h1>
-          <p className="text-base sm:text-xl text-[#a8d8ea] px-2">Персонализированное видео для вашего ребёнка</p>
+          <p className="text-base sm:text-xl text-[#a8d8ea] px-2">
+            Персонализированное видео для вашего ребёнка
+          </p>
         </motion.div>
 
         <div className="grid lg:grid-cols-2 gap-4 sm:gap-8 max-w-6xl mx-auto">
@@ -368,7 +372,7 @@ export default function DedMorozServicePage() {
               <button
                 onClick={toggleVideo}
                 className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors"
-                aria-label={isPlaying ? "Приостановить видео" : "Воспроизвести видео"}
+                aria-label={isPlaying ? 'Приостановить видео' : 'Воспроизвести видео'}
               >
                 {isPlaying ? (
                   <span className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
@@ -392,7 +396,9 @@ export default function DedMorozServicePage() {
             {/* Цена */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-white/10 gap-4">
               <div>
-                <p className="text-[#a8d8ea]/90 text-xs sm:text-sm line-through">Стоимость: 5 Койнов</p>
+                <p className="text-[#a8d8ea]/90 text-xs sm:text-sm line-through">
+                  Стоимость: 5 Койнов
+                </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <Gift className="w-6 h-6 sm:w-8 sm:h-8 text-[#0d4f2b]" />
                   <span className="text-2xl sm:text-4xl font-bold text-[#0d4f2b]">БЕСПЛАТНО</span>
@@ -427,19 +433,27 @@ export default function DedMorozServicePage() {
               <ul className="space-y-2 sm:space-y-3">
                 <li className="flex items-start gap-2 sm:gap-3">
                   <Check className="w-4 h-4 sm:w-5 sm:h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
-                  <span className="text-sm sm:text-base">Дедушка Мороз назовёт имя вашего ребёнка и поздравит с Новым Годом</span>
+                  <span className="text-sm sm:text-base">
+                    Дедушка Мороз назовёт имя вашего ребёнка и поздравит с Новым Годом
+                  </span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <Check className="w-4 h-4 sm:w-5 sm:h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
-                  <span className="text-sm sm:text-base">Покажет и прокомментирует загруженные вами фотографии</span>
+                  <span className="text-sm sm:text-base">
+                    Покажет и прокомментирует загруженные вами фотографии
+                  </span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <Check className="w-4 h-4 sm:w-5 sm:h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
-                  <span className="text-sm sm:text-base">Расскажет про Год Лошади 2026 и пожелает удачи</span>
+                  <span className="text-sm sm:text-base">
+                    Расскажет про Год Лошади 2026 и пожелает удачи
+                  </span>
                 </li>
                 <li className="flex items-start gap-2 sm:gap-3">
                   <Check className="w-4 h-4 sm:w-5 sm:h-5 text-[#0d4f2b] mt-0.5 flex-shrink-0" />
-                  <span className="text-sm sm:text-base">Видео будет доступно для скачивания в личном кабинете</span>
+                  <span className="text-sm sm:text-base">
+                    Видео будет доступно для скачивания в личном кабинете
+                  </span>
                 </li>
               </ul>
 
@@ -487,239 +501,246 @@ export default function DedMorozServicePage() {
               title="Оформление заказа"
               className="max-h-[90vh] flex flex-col"
             >
-                <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 -mr-1 sm:-mr-2 min-h-0">
-                  <form onSubmit={handleSubmitOrder} className="space-y-4 sm:space-y-6">
-                    {/* Имя ребёнка */}
-                    <div>
-                      <label className="block text-[#a8d8ea] mb-2 font-semibold text-sm sm:text-base">Имя ребёнка</label>
-                      <input
-                        type="text"
-                        value={formData.childName}
-                        onChange={(e) => setFormData({ ...formData, childName: e.target.value })}
-                        placeholder="Как зовут ребёнка?"
-                        required
-                        className="input-magic w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl text-[#f0f8ff] text-base sm:text-lg"
-                      />
-                    </div>
-
-                    {/* Возраст ребёнка */}
-                    <div>
-                      <label className="block text-[#a8d8ea] mb-2 font-semibold text-sm sm:text-base">
-                        Возраст ребёнка <span className="text-[#a8d8ea]/90 text-xs sm:text-sm">(необязательно)</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="18"
-                        value={formData.childAge}
-                        onChange={(e) =>
-                          setFormData({ ...formData, childAge: e.target.value || '' })
-                        }
-                        placeholder="Сколько лет ребёнку?"
-                        className="input-magic w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl text-[#f0f8ff] text-base sm:text-lg"
-                      />
-                      <p className="text-[#a8d8ea]/90 text-xs sm:text-sm mt-1">
-                        Укажите возраст, чтобы Дед Мороз обратился к ребёнку более персонально
-                      </p>
-                    </div>
-
-                    {/* Фото 1 */}
-                    <div className="space-y-2 sm:space-y-3">
-                      <label className="block text-[#a8d8ea] font-semibold text-sm sm:text-base">Фото №1</label>
-                      <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
-                        <div>
-                          {formData.photo1Preview ? (
-                            <div className="relative aspect-video rounded-xl overflow-hidden">
-                              <img
-                                src={formData.photo1Preview}
-                                alt="Фото 1 - загруженное пользователем изображение"
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                                decoding="async"
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setFormData({
-                                    ...formData,
-                                    photo1: null,
-                                    photo1Preview: '',
-                                  })
-                                }
-                                className="absolute top-2 right-2 bg-red-500 rounded-full p-1"
-                                aria-label="Удалить фото 1"
-                              >
-                                <X className="w-4 h-4 text-white" aria-hidden="true" />
-                              </button>
-                            </div>
-                          ) : (
-                            <label className="block aspect-video rounded-xl border-2 border-dashed border-[#a8d8ea]/30 hover:border-[#a8d8ea]/60 cursor-pointer transition-colors">
-                              <div className="h-full flex flex-col items-center justify-center text-[#a8d8ea]/90">
-                                <Upload className="w-8 h-8 mb-2" />
-                                <span className="text-sm">Загрузить фото</span>
-                              </div>
-                              <input
-                                type="file"
-                                accept="image/jpeg,image/jpg,image/png"
-                                onChange={(e) => handlePhotoChange(e, 1)}
-                                className="hidden"
-                              />
-                            </label>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-[#a8d8ea] mb-1 text-sm">
-                            Комментарий к фото
-                          </label>
-                          <textarea
-                            value={formData.photo1Comment}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                photo1Comment: e.target.value,
-                              })
-                            }
-                            placeholder="Опишите, что на фото (например: занимается спортом и любит футбол)"
-                            rows={3}
-                            className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] resize-none"
-                          />
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {COMMENT_SUGGESTIONS.slice(0, 3).map((s, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => setFormData({ ...formData, photo1Comment: s })}
-                                className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-[#a8d8ea]"
-                              >
-                                {s}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Фото 2 */}
-                    <div className="space-y-2 sm:space-y-3">
-                      <label className="block text-[#a8d8ea] font-semibold text-sm sm:text-base">Фото №2</label>
-                      <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
-                        <div>
-                          {formData.photo2Preview ? (
-                            <div className="relative aspect-video rounded-xl overflow-hidden">
-                              <img
-                                src={formData.photo2Preview}
-                                alt="Фото 2 - загруженное пользователем изображение"
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                                decoding="async"
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setFormData({
-                                    ...formData,
-                                    photo2: null,
-                                    photo2Preview: '',
-                                  })
-                                }
-                                className="absolute top-2 right-2 bg-red-500 rounded-full p-1"
-                                aria-label="Удалить фото 2"
-                              >
-                                <X className="w-4 h-4 text-white" aria-hidden="true" />
-                              </button>
-                            </div>
-                          ) : (
-                            <label className="block aspect-video rounded-xl border-2 border-dashed border-[#a8d8ea]/30 hover:border-[#a8d8ea]/60 cursor-pointer transition-colors">
-                              <div className="h-full flex flex-col items-center justify-center text-[#a8d8ea]/90">
-                                <Upload className="w-8 h-8 mb-2" />
-                                <span className="text-sm">Загрузить фото</span>
-                              </div>
-                              <input
-                                type="file"
-                                accept="image/jpeg,image/jpg,image/png"
-                                onChange={(e) => handlePhotoChange(e, 2)}
-                                className="hidden"
-                              />
-                            </label>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-[#a8d8ea] mb-1 text-sm">
-                            Комментарий к фото
-                          </label>
-                          <textarea
-                            value={formData.photo2Comment}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                photo2Comment: e.target.value,
-                              })
-                            }
-                            placeholder="Опишите, что на фото (например: отлично учится в школе)"
-                            rows={3}
-                            className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] resize-none"
-                          />
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {COMMENT_SUGGESTIONS.slice(3, 6).map((s, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => setFormData({ ...formData, photo2Comment: s })}
-                                className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-[#a8d8ea]"
-                              >
-                                {s}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Ошибка */}
-                    {error && (
-                      <div
-                        role="alert"
-                        aria-live="assertive"
-                        aria-atomic="true"
-                        className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 text-red-200"
-                      >
-                        ⚠️ {error}
-                      </div>
-                    )}
-                  </form>
-                </div>
-
-                {/* Итого и кнопка - фиксированные снизу */}
-                <div className="flex-shrink-0 pt-3 sm:pt-4 border-t border-white/10 mt-3 sm:mt-4 space-y-3 sm:space-y-4">
-                  <div className="bg-[#0d4f2b]/20 rounded-xl p-3 sm:p-4 text-center">
-                    <p className="text-[#0d4f2b] text-base sm:text-lg font-bold flex items-center justify-center gap-2">
-                      <Gift className="w-5 h-5 sm:w-6 sm:h-6" />
-                      Это бесплатно! 🎁
-                    </p>
-                    <p className="text-[#a8d8ea]/60 text-xs sm:text-sm mt-1">Акция на новогодние праздники</p>
+              <div className="flex-1 overflow-y-auto pr-1 sm:pr-2 -mr-1 sm:-mr-2 min-h-0">
+                <form onSubmit={handleSubmitOrder} className="space-y-4 sm:space-y-6">
+                  {/* Имя ребёнка */}
+                  <div>
+                    <label className="block text-[#a8d8ea] mb-2 font-semibold text-sm sm:text-base">
+                      Имя ребёнка
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.childName}
+                      onChange={(e) => setFormData({ ...formData, childName: e.target.value })}
+                      placeholder="Как зовут ребёнка?"
+                      required
+                      className="input-magic w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl text-[#f0f8ff] text-base sm:text-lg"
+                    />
                   </div>
 
-                  <motion.button
-                    type="button"
-                    onClick={handleSubmitOrder}
-                    disabled={loading}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="btn-magic w-full py-4 sm:py-5 rounded-xl text-base sm:text-xl font-bold text-white flex items-center justify-center gap-2 sm:gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <>
-                        <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
-                        <span>Создание видео...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Gift className="w-5 h-5 sm:w-6 sm:h-6" />
-                        <span>Получить бесплатно</span>
-                      </>
-                    )}
-                  </motion.button>
+                  {/* Возраст ребёнка */}
+                  <div>
+                    <label className="block text-[#a8d8ea] mb-2 font-semibold text-sm sm:text-base">
+                      Возраст ребёнка{' '}
+                      <span className="text-[#a8d8ea]/90 text-xs sm:text-sm">(необязательно)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="18"
+                      value={formData.childAge}
+                      onChange={(e) => setFormData({ ...formData, childAge: e.target.value || '' })}
+                      placeholder="Сколько лет ребёнку?"
+                      className="input-magic w-full px-4 sm:px-5 py-3 sm:py-4 rounded-xl text-[#f0f8ff] text-base sm:text-lg"
+                    />
+                    <p className="text-[#a8d8ea]/90 text-xs sm:text-sm mt-1">
+                      Укажите возраст, чтобы Дед Мороз обратился к ребёнку более персонально
+                    </p>
+                  </div>
+
+                  {/* Фото 1 */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <label className="block text-[#a8d8ea] font-semibold text-sm sm:text-base">
+                      Фото №1
+                    </label>
+                    <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div>
+                        {formData.photo1Preview ? (
+                          <div className="relative aspect-video rounded-xl overflow-hidden">
+                            <img
+                              src={formData.photo1Preview}
+                              alt="Фото 1 - загруженное пользователем изображение"
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData({
+                                  ...formData,
+                                  photo1: null,
+                                  photo1Preview: '',
+                                })
+                              }
+                              className="absolute top-2 right-2 bg-red-500 rounded-full p-1"
+                              aria-label="Удалить фото 1"
+                            >
+                              <X className="w-4 h-4 text-white" aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="block aspect-video rounded-xl border-2 border-dashed border-[#a8d8ea]/30 hover:border-[#a8d8ea]/60 cursor-pointer transition-colors">
+                            <div className="h-full flex flex-col items-center justify-center text-[#a8d8ea]/90">
+                              <Upload className="w-8 h-8 mb-2" />
+                              <span className="text-sm">Загрузить фото</span>
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/jpg,image/png"
+                              onChange={(e) => handlePhotoChange(e, 1)}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[#a8d8ea] mb-1 text-sm">
+                          Комментарий к фото
+                        </label>
+                        <textarea
+                          value={formData.photo1Comment}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              photo1Comment: e.target.value,
+                            })
+                          }
+                          placeholder="Опишите, что на фото (например: занимается спортом и любит футбол)"
+                          rows={3}
+                          className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] resize-none"
+                        />
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {COMMENT_SUGGESTIONS.slice(0, 3).map((s, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, photo1Comment: s })}
+                              className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-[#a8d8ea]"
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Фото 2 */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <label className="block text-[#a8d8ea] font-semibold text-sm sm:text-base">
+                      Фото №2
+                    </label>
+                    <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div>
+                        {formData.photo2Preview ? (
+                          <div className="relative aspect-video rounded-xl overflow-hidden">
+                            <img
+                              src={formData.photo2Preview}
+                              alt="Фото 2 - загруженное пользователем изображение"
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData({
+                                  ...formData,
+                                  photo2: null,
+                                  photo2Preview: '',
+                                })
+                              }
+                              className="absolute top-2 right-2 bg-red-500 rounded-full p-1"
+                              aria-label="Удалить фото 2"
+                            >
+                              <X className="w-4 h-4 text-white" aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="block aspect-video rounded-xl border-2 border-dashed border-[#a8d8ea]/30 hover:border-[#a8d8ea]/60 cursor-pointer transition-colors">
+                            <div className="h-full flex flex-col items-center justify-center text-[#a8d8ea]/90">
+                              <Upload className="w-8 h-8 mb-2" />
+                              <span className="text-sm">Загрузить фото</span>
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/jpg,image/png"
+                              onChange={(e) => handlePhotoChange(e, 2)}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[#a8d8ea] mb-1 text-sm">
+                          Комментарий к фото
+                        </label>
+                        <textarea
+                          value={formData.photo2Comment}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              photo2Comment: e.target.value,
+                            })
+                          }
+                          placeholder="Опишите, что на фото (например: отлично учится в школе)"
+                          rows={3}
+                          className="input-magic w-full px-4 py-3 rounded-xl text-[#f0f8ff] resize-none"
+                        />
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {COMMENT_SUGGESTIONS.slice(3, 6).map((s, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setFormData({ ...formData, photo2Comment: s })}
+                              className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-[#a8d8ea]"
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ошибка */}
+                  {error && (
+                    <div
+                      role="alert"
+                      aria-live="assertive"
+                      aria-atomic="true"
+                      className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 text-red-200"
+                    >
+                      ⚠️ {error}
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {/* Итого и кнопка - фиксированные снизу */}
+              <div className="flex-shrink-0 pt-3 sm:pt-4 border-t border-white/10 mt-3 sm:mt-4 space-y-3 sm:space-y-4">
+                <div className="bg-[#0d4f2b]/20 rounded-xl p-3 sm:p-4 text-center">
+                  <p className="text-[#0d4f2b] text-base sm:text-lg font-bold flex items-center justify-center gap-2">
+                    <Gift className="w-5 h-5 sm:w-6 sm:h-6" />
+                    Это бесплатно! 🎁
+                  </p>
+                  <p className="text-[#a8d8ea]/60 text-xs sm:text-sm mt-1">
+                    Акция на новогодние праздники
+                  </p>
                 </div>
+
+                <motion.button
+                  type="button"
+                  onClick={handleSubmitOrder}
+                  disabled={loading}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="btn-magic w-full py-4 sm:py-5 rounded-xl text-base sm:text-xl font-bold text-white flex items-center justify-center gap-2 sm:gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
+                      <span>Создание видео...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Gift className="w-5 h-5 sm:w-6 sm:h-6" />
+                      <span>Получить бесплатно</span>
+                    </>
+                  )}
+                </motion.button>
+              </div>
             </Modal>
           )}
         </AnimatePresence>
