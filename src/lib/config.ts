@@ -12,15 +12,15 @@ const rawJwtSecret = process.env.JWT_SECRET?.trim();
 if (!rawJwtSecret) {
   throw new Error(
     'JWT_SECRET environment variable is required but not set! ' +
-    'Please set JWT_SECRET in your environment variables. ' +
-    'For production, use a strong random string (at least 32 characters).'
+      'Please set JWT_SECRET in your environment variables. ' +
+      'For production, use a strong random string (at least 32 characters).'
   );
 }
 
 if (rawJwtSecret.length < 32) {
   throw new Error(
     `JWT_SECRET must be at least 32 characters long. Current length: ${rawJwtSecret.length}. ` +
-    'Please use a stronger secret for production.'
+      'Please use a stronger secret for production.'
   );
 }
 
@@ -74,9 +74,10 @@ export const GENERATION_TIMEOUT_MINUTES = Number(process.env.GENERATION_TIMEOUT_
 export const DATABASE_PATH = process.env.DATABASE_PATH || '/data/app.db';
 
 // === Хранилище видео ===
-// Для Amvera используем /data/videos (персистентное хранилище)
-// Next.js будет раздавать из public/videos через симлинк
-export const VIDEO_STORAGE_PATH = process.env.VIDEO_STORAGE_PATH || '/data/videos';
+// Используем относительный путь от корня проекта (data/videos)
+// Можно переопределить через переменную окружения VIDEO_STORAGE_PATH
+export const VIDEO_STORAGE_PATH =
+  process.env.VIDEO_STORAGE_PATH || path.join(process.cwd(), 'data', 'videos');
 export const VIDEO_PUBLIC_PATH =
   process.env.VIDEO_PUBLIC_PATH || path.join(process.cwd(), 'public', 'videos');
 
