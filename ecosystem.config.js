@@ -19,9 +19,15 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       autorestart: true,
+      restart_delay: 5000, // Задержка 5 секунд перед перезапуском
+      max_restarts: 5, // Максимум 5 перезапусков
+      min_uptime: '10s', // Минимальное время работы, чтобы считать запуск успешным
       max_memory_restart: '1G',
       watch: false,
       ignore_watch: ['node_modules', 'logs', '.next'],
+      // Останавливаем перезапуски, если приложение падает слишком часто
+      exp_backoff_restart_delay: 100,
+      stop_exit_codes: [0], // Перезапускать только при ненулевом коде выхода
     },
   ],
 };

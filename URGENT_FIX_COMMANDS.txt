@@ -1,0 +1,37 @@
+# СРОЧНЫЕ КОМАНДЫ ДЛЯ ИСПРАВЛЕНИЯ ПРОБЛЕМЫ С ПОРТОМ 3000
+# Выполните эти команды на сервере по порядку:
+
+# 1. Перейти в директорию приложения
+cd /home/appuser/app
+
+# 2. Остановить PM2 полностью
+pm2 stop all || true
+pm2 delete all || true
+pm2 kill || true
+sleep 3
+
+# 3. Найти и убить процессы на порту 3000
+# Сначала проверим, что занимает порт:
+ss -tlnp | grep :3000
+
+# Убиваем процессы через несколько методов:
+lsof -ti:3000 | xargs -r kill -9 || true
+ss -tlnp | grep :3000 | awk '{print $6}' | sed 's/.*pid=\([0-9]*\).*/\1/' | xargs -r kill -9 || true
+pkill -9 -f "next start" || true
+pkill -9 -f "node.*next" || true
+killall -9 node 2>/dev/null || true
+
+# 4. Подождать освобождения порта
+sleep 5
+
+# 5. Проверить, что порт свободен
+ss -tlnp | grep :3000
+# Если команда ничего не вывела - порт свободен!
+
+# 6. Запустить PM2 заново
+pm2 start ecosystem.config.js --update-env
+pm2 save
+
+# 7. Проверить статус
+pm2 status
+pm2 logs ded-moroz-video --lines 20
