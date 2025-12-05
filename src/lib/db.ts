@@ -19,15 +19,41 @@ if (dbDir !== '.' && !fs.existsSync(dbDir)) {
 
 // === Базовые функции работы с БД ===
 
+// Кэш для проверки существования БД
+let dbExistsCache: boolean | null = null;
+let dbExistsCheckTime = 0;
+const DB_EXISTS_CACHE_TTL = 10000; // 10 секунд
+
 export function getDb(): Promise<sqlite3.Database> {
   return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(DB_PATH, (err) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(db);
+    // Быстрая проверка существования файла (кэшированная)
+    const now = Date.now();
+    if (dbExistsCache === null || now - dbExistsCheckTime > DB_EXISTS_CACHE_TTL) {
+      dbExistsCache = fs.existsSync(DB_PATH);
+      dbExistsCheckTime = now;
+    }
+
+    // Используем WAL режим для лучшей производительности при чтении
+    const db = new sqlite3.Database(
+      DB_PATH,
+      sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+      (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          // Включаем WAL режим для лучшей производительности
+          db.run('PRAGMA journal_mode = WAL;', (err) => {
+            if (err) {
+              console.warn('Failed to enable WAL mode:', err);
+            }
+          });
+          // Оптимизируем для чтения
+          db.run('PRAGMA synchronous = NORMAL;', () => {});
+          db.run('PRAGMA cache_size = 10000;', () => {});
+          resolve(db);
+        }
       }
-    });
+    );
   });
 }
 
