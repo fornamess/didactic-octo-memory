@@ -47,11 +47,20 @@ export const CreatePaymentSchema = z.object({
     .positive('Сумма должна быть положительной')
     .min(1, 'Минимальная сумма: 1 Койн'),
   paymentCurrency: z
-    .union([
-      PaymentCurrencyEnum,
-      z.array(PaymentCurrencyEnum).min(1, 'Массив валют не может быть пустым'),
-    ])
-    .optional(),
+    .preprocess(
+      (val) => {
+        // Если это массив строк, фильтруем только валидные валюты
+        if (Array.isArray(val)) {
+          const validCurrencies = ['BTC', 'ETH', 'USDT', 'USDC', 'TRX', 'ATOM', 'AVAX', 'LTC'];
+          return val.filter((c) => validCurrencies.includes(c));
+        }
+        return val;
+      },
+      z.union([
+        PaymentCurrencyEnum,
+        z.array(PaymentCurrencyEnum).min(1, 'Массив валют не может быть пустым'),
+      ]).optional()
+    ),
 });
 
 // Пополнение баланса (админ)
