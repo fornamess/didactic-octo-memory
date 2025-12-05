@@ -1,8 +1,8 @@
-import type { Metadata } from 'next';
-import Script from 'next/script';
-import { Nunito, Marck_Script } from 'next/font/google';
 import Footer from '@/components/Footer';
 import { BASE_URL } from '@/lib/config';
+import type { Metadata, Viewport } from 'next';
+import { Marck_Script, Nunito } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 
 // Оптимизация шрифтов через next/font (PRF-004)
@@ -80,13 +80,14 @@ const structuredData = {
   isAccessibleForFree: true,
 };
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 5,
-  },
   title: {
     default: '🎅 Видео-поздравление от Деда Мороза | AI Генератор',
     template: '%s | Видео-поздравления от Деда Мороза',
@@ -180,7 +181,10 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Дед Мороз AI" />
       </head>
-      <body className={`antialiased ${nunito.variable} ${marckScript.variable}`} suppressHydrationWarning>
+      <body
+        className={`antialiased ${nunito.variable} ${marckScript.variable}`}
+        suppressHydrationWarning
+      >
         {/* Skip link для accessibility (A11Y-005) */}
         <a
           href="#main-content"
@@ -188,9 +192,7 @@ export default function RootLayout({
         >
           Перейти к основному контенту
         </a>
-        <div id="main-content">
-          {children}
-        </div>
+        <div id="main-content">{children}</div>
         <Footer />
         <Script
           id="structured-data"

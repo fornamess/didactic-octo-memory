@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'ded-moroz-video',
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start',
+      // Для standalone режима используем node .next/standalone/server.js
+      script: '.next/standalone/server.js',
       cwd: process.cwd(),
       instances: 1,
       exec_mode: 'fork',
