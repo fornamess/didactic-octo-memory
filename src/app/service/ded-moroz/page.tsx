@@ -197,14 +197,9 @@ export default function DedMorozServicePage() {
       );
       setShowOrderForm(false);
 
-      // Сохраняем флаг для обновления заказов в профиле
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('refreshOrders', 'true');
-      }
-
       // Редирект в профиль через 3 секунды
       setTimeout(() => {
-        router.push('/profile?refresh=' + Date.now());
+        router.push('/profile');
       }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');

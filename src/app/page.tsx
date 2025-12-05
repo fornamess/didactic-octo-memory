@@ -9,7 +9,6 @@ import { Suspense, lazy } from 'react';
 const Snowfall = lazy(() => import('@/components/Snowfall'));
 
 // Указываем что страница динамическая (использует cookies)
-// Используем unstable_noStore для оптимизации, но страница все равно динамическая
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {

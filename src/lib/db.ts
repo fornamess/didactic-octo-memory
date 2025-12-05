@@ -19,41 +19,15 @@ if (dbDir !== '.' && !fs.existsSync(dbDir)) {
 
 // === Базовые функции работы с БД ===
 
-// Кэш для проверки существования БД
-let dbExistsCache: boolean | null = null;
-let dbExistsCheckTime = 0;
-const DB_EXISTS_CACHE_TTL = 10000; // 10 секунд
-
 export function getDb(): Promise<sqlite3.Database> {
   return new Promise((resolve, reject) => {
-    // Быстрая проверка существования файла (кэшированная)
-    const now = Date.now();
-    if (dbExistsCache === null || now - dbExistsCheckTime > DB_EXISTS_CACHE_TTL) {
-      dbExistsCache = fs.existsSync(DB_PATH);
-      dbExistsCheckTime = now;
-    }
-
-    // Используем WAL режим для лучшей производительности при чтении
-    const db = new sqlite3.Database(
-      DB_PATH,
-      sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-      (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          // Включаем WAL режим для лучшей производительности
-          db.run('PRAGMA journal_mode = WAL;', (err) => {
-            if (err) {
-              console.warn('Failed to enable WAL mode:', err);
-            }
-          });
-          // Оптимизируем для чтения
-          db.run('PRAGMA synchronous = NORMAL;', () => {});
-          db.run('PRAGMA cache_size = 10000;', () => {});
-          resolve(db);
-        }
+    const db = new sqlite3.Database(DB_PATH, (err) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(db);
       }
-    );
+    });
   });
 }
 
@@ -353,22 +327,6 @@ export async function getUserOrders(userId: number, limit: number = 50) {
     [userId, limit]
   );
   db.close();
-
-  // Логируем только если заказов нет, но должны быть
-  if (orders.length === 0) {
-    // Проверяем есть ли вообще заказы в БД
-    const db2 = await getDb();
-    const allOrders = await all(
-      db2,
-      'SELECT id, user_id, order_number FROM orders ORDER BY id DESC LIMIT 5'
-    );
-    db2.close();
-    console.log(
-      `[DB] getUserOrders: No orders found for user_id ${userId}. Last 5 orders in DB:`,
-      allOrders.map((o) => ({ id: o.id, user_id: o.user_id, order_number: o.order_number }))
-    );
-  }
-
   return orders;
 }
 

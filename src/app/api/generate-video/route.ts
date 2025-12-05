@@ -103,7 +103,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Создаём заказ в БД
-    console.log(`[GENERATE-VIDEO] Creating order for user ${user.id} (${user.email})`);
     const { orderId, orderNumber } = await createOrder(
       user.id,
       childName,
@@ -113,7 +112,6 @@ export async function POST(request: NextRequest) {
       photo2Comment,
       SERVICE_COST
     );
-    console.log(`[GENERATE-VIDEO] Order created: ${orderNumber} (ID: ${orderId}) for user ${user.id}`);
 
     // Сохраняем изображения на сервер и получаем их URL
     let photo1Url: string | null = null;

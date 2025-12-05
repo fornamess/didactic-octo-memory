@@ -12,12 +12,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
     }
 
-    console.log(`[HISTORY] Getting orders for user ${user.id} (${user.email})`);
-
     // Получаем историю заказов
     const orders = await getUserOrders(user.id);
-
-    console.log(`[HISTORY] Found ${orders.length} orders for user ${user.id}`);
 
     return NextResponse.json({
       success: true,
