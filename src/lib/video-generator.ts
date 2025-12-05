@@ -561,14 +561,21 @@ export async function concatenateVideos(
 
     // МАКСИМАЛЬНО ПРОСТАЯ КОНКАТЕНАЦИЯ - concat demuxer БЕЗ ВСЕХ ФИЛЬТРОВ
     // Создаем временный файл со списком видео для concat demuxer
+    // Используем абсолютные пути для надежности
     const concatListPath = path.join(outputDir, `concat_list_${Date.now()}.txt`);
+    const introAbsolute = path.resolve(introPath);
+    const personalAbsolute = path.resolve(personalPath);
+    const outroAbsolute = path.resolve(outroPath);
+
     const concatListContent = [
-      `file '${introPath.replace(/'/g, "'\\''")}'`,
-      `file '${personalPath.replace(/'/g, "'\\''")}'`,
-      `file '${outroPath.replace(/'/g, "'\\''")}'`,
+      `file '${introAbsolute.replace(/'/g, "'\\''")}'`,
+      `file '${personalAbsolute.replace(/'/g, "'\\''")}'`,
+      `file '${outroAbsolute.replace(/'/g, "'\\''")}'`,
     ].join('\n');
 
     fs.writeFileSync(concatListPath, concatListContent, 'utf8');
+    console.log('Concat list file created:', concatListPath);
+    console.log('Concat list content:', concatListContent);
 
     console.log('Using concat demuxer (no filters, no effects)');
 
