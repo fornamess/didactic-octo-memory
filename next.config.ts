@@ -1,8 +1,9 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Standalone режим для Docker
-  output: 'standalone',
+  // Standalone режим отключен для PM2 (используем обычный next start)
+  // Для Docker можно включить обратно: output: 'standalone',
+  // output: 'standalone',
 
   // Настройки для обработки внешних пакетов (обновлённая версия)
   serverExternalPackages: ['sqlite3', 'fluent-ffmpeg'],
