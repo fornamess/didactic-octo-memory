@@ -53,6 +53,13 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ error: 'Файл видео не найден' }, { status: 404 });
         }
 
+        // Проверяем размер файла
+        const stats = fs.statSync(filePath);
+        if (stats.size < 1024) {
+          console.error('Video file too small:', stats.size);
+          return NextResponse.json({ error: 'Файл видео повреждён' }, { status: 500 });
+        }
+
         videoBuffer = fs.readFileSync(filePath);
       } else if (order.video_url.startsWith('http')) {
         // Внешний URL - скачиваем через fetch

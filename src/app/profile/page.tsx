@@ -479,7 +479,21 @@ export default function ProfilePage() {
                   <X className="w-6 h-6" />
                 </button>
               </div>
-              <video src={selectedOrder.videoUrl} controls autoPlay className="w-full rounded-xl" />
+              <video
+                src={selectedOrder.videoUrl}
+                controls
+                autoPlay
+                className="w-full rounded-xl"
+                playsInline
+                preload="metadata"
+                onError={(e) => {
+                  console.error('Video playback error:', e);
+                  alert('Ошибка воспроизведения видео. Попробуйте скачать файл.');
+                }}
+              >
+                <source src={selectedOrder.videoUrl} type="video/mp4" />
+                Ваш браузер не поддерживает воспроизведение видео.
+              </video>
             </motion.div>
           </motion.div>
         )}

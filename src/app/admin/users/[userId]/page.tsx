@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ArrowLeft, Coins, History, Loader, Plus, Save, Shield, X } from 'lucide-react';
+import { ArrowLeft, Coins, History, Loader, Plus, Save, Shield, X, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -46,6 +46,7 @@ export default function UserDetailPage() {
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupAmount, setTopupAmount] = useState('');
   const [topupLoading, setTopupLoading] = useState(false);
+  const [selectedVideoOrder, setSelectedVideoOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     checkAdminAccess();
@@ -267,7 +268,8 @@ export default function UserDetailPage() {
                       <th className="pb-2 pr-4">Номер</th>
                       <th className="pb-2 pr-4">Название</th>
                       <th className="pb-2 pr-4">Статус</th>
-                      <th className="pb-2">Дата</th>
+                      <th className="pb-2 pr-4">Дата</th>
+                      <th className="pb-2">Действия</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -278,7 +280,19 @@ export default function UserDetailPage() {
                         </td>
                         <td className="py-3 pr-4 text-white">{order.service_name}</td>
                         <td className="py-3 pr-4 text-[#a8d8ea]">{order.status}</td>
-                        <td className="py-3 text-[#a8d8ea]/60">{formatDate(order.created_at)}</td>
+                        <td className="py-3 pr-4 text-[#a8d8ea]/60">{formatDate(order.created_at)}</td>
+                        <td className="py-3">
+                          {order.status === 'completed' && order.video_url && (
+                            <button
+                              onClick={() => setSelectedVideoOrder(order)}
+                              className="btn-magic px-3 py-1.5 rounded-lg text-white text-sm flex items-center gap-2 hover:scale-105 transition-transform"
+                              title="Просмотреть видео"
+                            >
+                              <Play className="w-4 h-4" />
+                              Смотреть
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -376,6 +390,49 @@ export default function UserDetailPage() {
                 Отмена
               </button>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Модальное окно просмотра видео */}
+      {selectedVideoOrder && selectedVideoOrder.video_url && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedVideoOrder(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="max-w-4xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-white text-xl font-bold">
+                {selectedVideoOrder.service_name} - Заказ #{selectedVideoOrder.order_number}
+              </h3>
+              <button
+                onClick={() => setSelectedVideoOrder(null)}
+                className="text-white/60 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <video
+              src={selectedVideoOrder.video_url}
+              controls
+              autoPlay
+              className="w-full rounded-xl"
+              playsInline
+              preload="metadata"
+              onError={(e) => {
+                console.error('Video playback error:', e);
+                alert('Ошибка воспроизведения видео. Возможно, файл повреждён или удалён.');
+              }}
+            >
+              <source src={selectedVideoOrder.video_url} type="video/mp4" />
+              Ваш браузер не поддерживает воспроизведение видео.
+            </video>
           </motion.div>
         </div>
       )}
