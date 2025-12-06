@@ -1,5 +1,5 @@
 import { getUserFromRequest } from '@/lib/auth';
-import { VIDEO_STORAGE_PATH } from '@/lib/config';
+import { VIDEO_STORAGE_PATH, YES_AI_API_BASE, YES_AI_TOKEN } from '@/lib/config';
 import { ensureDbInitialized, getOrderByTaskId } from '@/lib/db';
 import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
@@ -49,18 +49,64 @@ export async function GET(request: NextRequest) {
         console.log('Reading local video file:', filePath);
 
         if (!fs.existsSync(filePath)) {
-          console.error('Video file not found:', filePath);
-          return NextResponse.json({ error: 'Файл видео не найден' }, { status: 404 });
-        }
+          console.error('Video file not found locally:', filePath);
 
-        // Проверяем размер файла
-        const stats = fs.statSync(filePath);
-        if (stats.size < 1024) {
-          console.error('Video file too small:', stats.size);
-          return NextResponse.json({ error: 'Файл видео повреждён' }, { status: 500 });
-        }
+          // Попытка получить видео с внешнего API
+          console.log('Attempting to fetch video from external API for taskId:', order.task_id);
 
-        videoBuffer = fs.readFileSync(filePath);
+          if (!YES_AI_TOKEN) {
+            return NextResponse.json({ error: 'API токен не настроен' }, { status: 500 });
+          }
+
+          try {
+            // Получаем информацию о задаче из API
+            const statusResponse = await fetch(`${YES_AI_API_BASE}/yesvideo/animations/${order.task_id}`, {
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${YES_AI_TOKEN}`,
+              },
+            });
+
+            const statusData = await statusResponse.json();
+            const externalVideoUrl = statusData.results?.animation_data?.result_url;
+
+            if (!externalVideoUrl) {
+              console.error('No external video URL found in API response');
+              return NextResponse.json({ error: 'Видео не найдено на сервере генерации' }, { status: 404 });
+            }
+
+            console.log('Fetching video from:', externalVideoUrl);
+
+            // Скачиваем видео с внешнего API
+            const videoResponse = await fetch(externalVideoUrl);
+            if (!videoResponse.ok) {
+              throw new Error('Failed to fetch external video');
+            }
+
+            videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+
+            // Сохраняем локально для будущих запросов
+            const dir = path.dirname(filePath);
+            if (!fs.existsSync(dir)) {
+              fs.mkdirSync(dir, { recursive: true });
+            }
+            fs.writeFileSync(filePath, videoBuffer);
+            console.log('Video saved locally:', filePath);
+
+          } catch (apiError) {
+            console.error('Error fetching from external API:', apiError);
+            return NextResponse.json({ error: 'Не удалось получить видео с сервера генерации' }, { status: 500 });
+          }
+        } else {
+          // Проверяем размер файла
+          const stats = fs.statSync(filePath);
+          if (stats.size < 1024) {
+            console.error('Video file too small:', stats.size);
+            return NextResponse.json({ error: 'Файл видео повреждён' }, { status: 500 });
+          }
+
+          videoBuffer = fs.readFileSync(filePath);
+        }
       } else if (order.video_url.startsWith('http')) {
         // Внешний URL - скачиваем через fetch
         console.log('Fetching external video:', order.video_url);

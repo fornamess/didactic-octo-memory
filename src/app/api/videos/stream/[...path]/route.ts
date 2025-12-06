@@ -1,4 +1,4 @@
-import { VIDEO_STORAGE_PATH } from '@/lib/config';
+import { VIDEO_STORAGE_PATH, YES_AI_API_BASE, YES_AI_TOKEN } from '@/lib/config';
 import { ensureDbInitialized, getDb, get } from '@/lib/db';
 import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
@@ -35,8 +35,71 @@ export async function GET(
 
     // Проверяем что файл существует
     if (!fs.existsSync(fullPath)) {
-      console.log('Video file not found:', fullPath);
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+      console.log('Video file not found locally:', fullPath);
+
+      // Попытка восстановить файл с внешнего API (для personal видео)
+      if (filePath.startsWith('personal/personal_')) {
+        const orderIdMatch = filePath.match(/personal_(\d+)\.mp4/);
+
+        if (orderIdMatch && YES_AI_TOKEN) {
+          const orderId = parseInt(orderIdMatch[1], 10);
+
+          try {
+            await ensureDbInitialized();
+            const db = await getDb();
+            const order = await get(
+              db,
+              'SELECT task_id FROM orders WHERE id = ?',
+              [orderId]
+            );
+            db.close();
+
+            if (order && order.task_id) {
+              console.log('Attempting to fetch video from external API for taskId:', order.task_id);
+
+              // Получаем информацию о задаче из API
+              const statusResponse = await fetch(`${YES_AI_API_BASE}/yesvideo/animations/${order.task_id}`, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${YES_AI_TOKEN}`,
+                },
+              });
+
+              const statusData = await statusResponse.json();
+              const externalVideoUrl = statusData.results?.animation_data?.result_url;
+
+              if (externalVideoUrl) {
+                console.log('Fetching video from:', externalVideoUrl);
+
+                // Скачиваем видео с внешнего API
+                const videoResponse = await fetch(externalVideoUrl);
+                if (videoResponse.ok) {
+                  const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+
+                  // Сохраняем локально
+                  const dir = path.dirname(fullPath);
+                  if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                  }
+                  fs.writeFileSync(fullPath, videoBuffer);
+                  console.log('Video restored and saved locally:', fullPath);
+
+                  // Продолжаем обработку ниже с восстановленным файлом
+                } else {
+                  console.error('Failed to fetch external video:', videoResponse.status);
+                }
+              }
+            }
+          } catch (restoreError) {
+            console.error('Error restoring video from API:', restoreError);
+          }
+        }
+      }
+
+      // Проверяем снова после попытки восстановления
+      if (!fs.existsSync(fullPath)) {
+        return NextResponse.json({ error: 'File not found' }, { status: 404 });
+      }
     }
 
     // Проверяем что это файл (не директория)
