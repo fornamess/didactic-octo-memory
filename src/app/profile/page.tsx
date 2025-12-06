@@ -145,10 +145,10 @@ export default function ProfilePage() {
           if (!order.taskId) return;
 
           try {
-            const response = await fetch('/api/videos/check-status', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ taskId: order.taskId, orderId: order.id }),
+            // Используем правильный эндпоинт, который выполняет склейку видео с intro/outro
+            const response = await fetch(`/api/check-status?taskId=${order.taskId}`, {
+              method: 'GET',
+              credentials: 'include',
             });
 
             if (response.ok) {
